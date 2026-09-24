@@ -1,0 +1,19 @@
+node_modules/
+.expo/
+dist/
+/android/
+/ios/
+*.jks
+*.keystore
+.env
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.signing/
+.gstack/
+
+# Service configuration is intentionally not committed to the public repository.
+/google-services.json
+/GoogleService-Info.plist

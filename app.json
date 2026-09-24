@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "MyMap",
+    "slug": "mymap",
+    "version": "1.0.0",
+    "scheme": "mymap",
+    "icon": "./assets/branding/app-icon-v2.png",
+    "backgroundColor": "#061326",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pnhl.vibecoding",
+      "buildNumber": "23",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location"
+        ],
+        "NSLocationWhenInUseUsageDescription": "MyMap dùng vị trí để lưu hành trình, hiển thị mức độ đông đúc riêng tư và cung cấp vị trí khi bạn chủ động kích hoạt SOS.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "MyMap cần quyền vị trí nền để lưu lịch sử di chuyển khi ứng dụng không mở."
+      }
+    },
+    "android": {
+      "package": "com.pnhl.vibecoding",
+      "versionCode": 23,
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/branding/adaptive-foreground-v2.png",
+        "backgroundColor": "#061326"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Cho phép MyMap theo dõi vị trí để lưu lịch sử di chuyển của bạn.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      "expo-sqlite",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép MyMap truy cập ảnh để tạo kỷ niệm gắn với địa điểm.",
+          "cameraPermission": "Cho phép MyMap dùng camera để chụp ảnh và ghim lên bản đồ.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép MyMap dùng camera để quét mã QR kết bạn.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Cho phép MyMap sử dụng cảm biến chuyển động để phát hiện va chạm hoặc té ngã có thể cần trợ giúp."
+        }
+      ],
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#061326",
+          "image": "./assets/branding/splash-logo-v2.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#061326",
+            "image": "./assets/branding/splash-logo-v2.png"
+          }
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import { deletePhotoPin, insertPhotoPin } from '../db/database';
+import type { PhotoPin } from '../types/photo';
+function extensionFromUri(uri:string){const clean=uri.split('?')[0]??uri;const ext=clean.split('.').pop()?.toLowerCase();return ext&&/^[a-z0-9]{2,5}$/.test(ext)?ext:'jpg';}
+export async function capturePhotoPin(){const cameraPermission=await ImagePicker.requestCameraPermissionsAsync();if(!cameraPermission.granted)throw new Error('Cần quyền camera để chụp ảnh.');const locationPermission=await Location.requestForegroundPermissionsAsync();if(!locationPermission.granted)throw new Error('Cần quyền vị trí để ghim ảnh lên bản đồ.');const result=await ImagePicker.launchCameraAsync({mediaTypes:['images'],quality:0.9,exif:false});if(result.canceled||!result.assets[0])return null;const location=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.High});const capturedAt=Date.now();const baseDir=`${FileSystem.documentDirectory}mymap/photos/`;await FileSystem.makeDirectoryAsync(baseDir,{intermediates:true});const asset=result.assets[0];const destination=`${baseDir}${capturedAt}.${extensionFromUri(asset.uri)}`;await FileSystem.copyAsync({from:asset.uri,to:destination});return insertPhotoPin({uri:destination,latitude:location.coords.latitude,longitude:location.coords.longitude,accuracy:location.coords.accuracy,capturedAt,title:null,note:null,placeName:null,countryCode:null,timezoneOffsetMinutes:-new Date(capturedAt).getTimezoneOffset()});}
+export async function removePhotoPin(pin:PhotoPin){await FileSystem.deleteAsync(pin.uri,{idempotent:true});await deletePhotoPin(pin.id);}

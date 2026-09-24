@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["MyMapSafetyModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.mymapsafety.MyMapSafetyModule"]
+  }
+}
