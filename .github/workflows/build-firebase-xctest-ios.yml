@@ -115,11 +115,17 @@ jobs:
 
           unless prelude.empty?
             source.insert(target_index, prelude)
-            File.write(path, source)
           end
 
+          unless source.include?('$RNFirebaseAsStaticFramework = true')
+            target_body_index = source.index("\n", target_index) + 1
+            source.insert(target_body_index, "  $RNFirebaseAsStaticFramework = true\n")
+          end
+
+          File.write(path, source)
+
           puts 'Patched ios/Podfile:'
-          puts File.readlines(path).grep(/platform|RNFirebaseDisableSPM|use_modular_headers!|use_frameworks!|target /).join
+          puts File.readlines(path).grep(/platform|RNFirebaseDisableSPM|RNFirebaseAsStaticFramework|use_modular_headers!|use_frameworks!|target /).join
           RUBY
 
       - name: Ensure xcodeproj Ruby gem is available
