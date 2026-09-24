@@ -30,6 +30,7 @@ jobs:
       MYMAP_IOS_TEST_SCHEME: MyMapFirebaseTests
       MYMAP_IOS_SCHEME: MyMapFirebaseTests
       MYMAP_IOS_SIGNING_MODE: adhoc
+      USE_FRAMEWORKS: static
 
     steps:
       - name: Checkout
@@ -98,23 +99,24 @@ jobs:
       - name: Generate native iOS project
         run: npx expo prebuild --platform ios --clean
 
-      - name: Enable modular headers for Firebase pods
+      - name: Configure React Native Firebase CocoaPods linkage
         shell: bash
         run: |
           ruby <<'RUBY'
           path = 'ios/Podfile'
           source = File.read(path)
 
+          # RNFirebase CocoaPods mode + static frameworks.
+          # USE_FRAMEWORKS=static activates the generated Expo Podfile's
+          # use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym line.
+          source = source.lines.reject { |line| line.match?(/^\s*use_modular_headers!\s*$/) }.join
+
           target_index = source.index(/^target\s+['"]/)
           abort 'Could not find an iOS target in ios/Podfile' unless target_index
 
-          prelude = +''
-          prelude << "$RNFirebaseDisableSPM = true\n" unless source.include?('$RNFirebaseDisableSPM = true')
-          prelude << "use_modular_headers!\n" unless source.match?(/^\s*use_modular_headers!\s*$/)
-          prelude << "\n" unless prelude.empty?
-
-          unless prelude.empty?
-            source.insert(target_index, prelude)
+          unless source.include?('$RNFirebaseDisableSPM = true')
+            source.insert(target_index, "$RNFirebaseDisableSPM = true\n\n")
+            target_index = source.index(/^target\s+['"]/)
           end
 
           unless source.include?('$RNFirebaseAsStaticFramework = true')
@@ -125,7 +127,8 @@ jobs:
           File.write(path, source)
 
           puts 'Patched ios/Podfile:'
-          puts File.readlines(path).grep(/platform|RNFirebaseDisableSPM|RNFirebaseAsStaticFramework|use_modular_headers!|use_frameworks!|target /).join
+          puts File.readlines(path).grep(/platform|RNFirebaseDisableSPM|RNFirebaseAsStaticFramework|use_frameworks!|target /).join
+          puts "USE_FRAMEWORKS=#{ENV['USE_FRAMEWORKS']}"
           RUBY
 
       - name: Ensure xcodeproj Ruby gem is available
