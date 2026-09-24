@@ -105,16 +105,21 @@ jobs:
           path = 'ios/Podfile'
           source = File.read(path)
 
-          unless source.match?(/^\s*use_modular_headers!\s*$/)
-            target_index = source.index(/^target\s+['"]/)
-            abort 'Could not find an iOS target in ios/Podfile' unless target_index
+          target_index = source.index(/^target\s+['"]/)
+          abort 'Could not find an iOS target in ios/Podfile' unless target_index
 
-            source.insert(target_index, "use_modular_headers!\n\n")
+          prelude = +''
+          prelude << "$RNFirebaseDisableSPM = true\n" unless source.include?('$RNFirebaseDisableSPM = true')
+          prelude << "use_modular_headers!\n" unless source.match?(/^\s*use_modular_headers!\s*$/)
+          prelude << "\n" unless prelude.empty?
+
+          unless prelude.empty?
+            source.insert(target_index, prelude)
             File.write(path, source)
           end
 
           puts 'Patched ios/Podfile:'
-          puts File.readlines(path).grep(/platform|use_modular_headers!|target /).join
+          puts File.readlines(path).grep(/platform|RNFirebaseDisableSPM|use_modular_headers!|use_frameworks!|target /).join
           RUBY
 
       - name: Ensure xcodeproj Ruby gem is available
