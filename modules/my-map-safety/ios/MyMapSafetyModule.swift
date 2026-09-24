@@ -4,6 +4,7 @@ import CoreMotion
 import ExpoModulesCore
 import Foundation
 import Photos
+import UIKit
 import WatchConnectivity
 
 private let incidentEvent = "onIncidentDetected"
@@ -11,7 +12,8 @@ private let visitEvent = "onVisitDetected"
 private let regionEvent = "onRegionStateChanged"
 private let watchSosEvent = "onWatchSosTriggered"
 
-public final class MyMapSafetyModule: Module, CLLocationManagerDelegate, WCSessionDelegate {
+public final class MyMapSafetyModule: Module {
+  private lazy var delegateProxy = MyMapSafetyDelegate(owner: self)
   private let motionManager = CMMotionManager()
   private let altimeter = CMAltimeter()
   private let pedometer = CMPedometer()
@@ -111,7 +113,7 @@ public final class MyMapSafetyModule: Module, CLLocationManagerDelegate, WCSessi
       DispatchQueue.main.async {
         if self.locationManager == nil {
           let manager = CLLocationManager()
-          manager.delegate = self
+          manager.delegate = self.delegateProxy
           manager.allowsBackgroundLocationUpdates = true
           manager.pausesLocationUpdatesAutomatically = false
           self.locationManager = manager
@@ -148,7 +150,7 @@ public final class MyMapSafetyModule: Module, CLLocationManagerDelegate, WCSessi
     AsyncFunction("setupWatchConnectivity") { () -> Bool in
       guard WCSession.isSupported() else { return false }
       let session = WCSession.default
-      session.delegate = self
+      session.delegate = self.delegateProxy
       session.activate()
       return true
     }
@@ -305,3 +307,40 @@ public final class MyMapSafetyModule: Module, CLLocationManagerDelegate, WCSessi
   }
 }
 
+
+private final class MyMapSafetyDelegate: NSObject, CLLocationManagerDelegate, WCSessionDelegate {
+  private weak var owner: MyMapSafetyModule?
+
+  init(owner: MyMapSafetyModule) {
+    self.owner = owner
+    super.init()
+  }
+
+  func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
+    owner?.locationManager(manager, didVisit: visit)
+  }
+
+  func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+    owner?.locationManager(manager, didEnterRegion: region)
+  }
+
+  func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+    owner?.locationManager(manager, didExitRegion: region)
+  }
+
+  func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+    owner?.session(session, activationDidCompleteWith: activationState, error: error)
+  }
+
+  func sessionDidBecomeInactive(_ session: WCSession) {
+    owner?.sessionDidBecomeInactive(session)
+  }
+
+  func sessionDidDeactivate(_ session: WCSession) {
+    owner?.sessionDidDeactivate(session)
+  }
+
+  func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+    owner?.session(session, didReceiveMessage: message)
+  }
+}
