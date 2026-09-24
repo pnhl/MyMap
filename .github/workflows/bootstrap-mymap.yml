@@ -1,0 +1,49 @@
+name: Bootstrap MyMap source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bootstrap-mymap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download prepared MyMap source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 \
+            'https://res.cloudinary.com/sqwipvlw/raw/upload/v1790222222/mymap-ci-source-sanitized' \
+            -o /tmp/MyMap-ci-source-sanitized.zip
+          unzip -q -o /tmp/MyMap-ci-source-sanitized.zip -d .
+          rm -f .github/workflows/bootstrap-mymap.yml
+          rm -rf modules/my-map-safety/android/.gradle
+          test -f package.json
+          test -f .github/workflows/build-firebase-xctest-ios.yml
+          test -f scripts/package-firebase-xctest-ios.sh
+          test -f scripts/add-ios-ui-test-target.rb
+          test -f ios-tests/MyMapUITests/MyMapSmokeTests.swift
+
+      - name: Commit source to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Import MyMap source and Firebase XCTest workflow'
+          git push origin HEAD:main
