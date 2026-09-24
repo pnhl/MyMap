@@ -98,6 +98,25 @@ jobs:
       - name: Generate native iOS project
         run: npx expo prebuild --platform ios --clean
 
+      - name: Enable modular headers for Firebase pods
+        shell: bash
+        run: |
+          ruby <<'RUBY'
+          path = 'ios/Podfile'
+          source = File.read(path)
+
+          unless source.match?(/^\s*use_modular_headers!\s*$/)
+            target_index = source.index(/^target\s+['"]/)
+            abort 'Could not find an iOS target in ios/Podfile' unless target_index
+
+            source.insert(target_index, "use_modular_headers!\n\n")
+            File.write(path, source)
+          end
+
+          puts 'Patched ios/Podfile:'
+          puts File.readlines(path).grep(/platform|use_modular_headers!|target /).join
+          RUBY
+
       - name: Ensure xcodeproj Ruby gem is available
         run: |
           if ! ruby -e 'require "xcodeproj"' 2>/dev/null; then
