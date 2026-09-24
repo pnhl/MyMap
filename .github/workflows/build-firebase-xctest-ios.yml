@@ -1,0 +1,139 @@
+name: Build Firebase XCTest iOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'ci/**'
+
+concurrency:
+  group: mymap-firebase-xctest-ios
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-xctest:
+    name: Build MyMap-Firebase-XCTest.zip
+    runs-on: macos-26
+    timeout-minutes: 75
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      NODE_OPTIONS: '--max_old_space_size=4096'
+      MYMAP_IOS_APP_TARGET: MyMap
+      MYMAP_IOS_TEST_TARGET: MyMapUITests
+      MYMAP_IOS_TEST_SCHEME: MyMapFirebaseTests
+      MYMAP_IOS_SCHEME: MyMapFirebaseTests
+      MYMAP_IOS_SIGNING_MODE: adhoc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show macOS and Xcode versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Prepare non-secret CI Firebase configuration
+        shell: bash
+        run: |
+          cat > google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "mymap-ci",
+              "storage_bucket": "mymap-ci.invalid"
+            },
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                "android_client_info": {"package_name": "com.pnhl.vibecoding"}
+              },
+              "oauth_client": [],
+              "api_key": [{"current_key": "AIzaSyCI_ONLY_NOT_A_REAL_KEY_000000000"}],
+              "services": {}
+            }],
+            "configuration_version": "1"
+          }
+          JSON
+          cat > GoogleService-Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>API_KEY</key><string>AIzaSyCI_ONLY_NOT_A_REAL_KEY_000000000</string>
+            <key>GCM_SENDER_ID</key><string>000000000000</string>
+            <key>PLIST_VERSION</key><string>1</string>
+            <key>BUNDLE_ID</key><string>com.pnhl.vibecoding</string>
+            <key>PROJECT_ID</key><string>mymap-ci</string>
+            <key>STORAGE_BUCKET</key><string>mymap-ci.invalid</string>
+            <key>IS_ADS_ENABLED</key><false/>
+            <key>IS_ANALYTICS_ENABLED</key><false/>
+            <key>IS_APPINVITE_ENABLED</key><false/>
+            <key>IS_GCM_ENABLED</key><false/>
+            <key>IS_SIGNIN_ENABLED</key><false/>
+            <key>GOOGLE_APP_ID</key><string>1:000000000000:ios:0000000000000000</string>
+          </dict></plist>
+          PLIST
+
+      - name: Install JavaScript dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Generate native iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Ensure xcodeproj Ruby gem is available
+        run: |
+          if ! ruby -e 'require "xcodeproj"' 2>/dev/null; then
+            gem install xcodeproj --no-document
+          fi
+          ruby -e 'require "xcodeproj"; puts "xcodeproj #{Xcodeproj::VERSION}"'
+
+      - name: Add MyMap UI test target and shared scheme
+        run: ruby scripts/add-ios-ui-test-target.rb
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Verify generated workspace and scheme
+        run: |
+          test -d ios/MyMap.xcworkspace
+          xcodebuild -workspace ios/MyMap.xcworkspace -list
+
+      - name: Build and package Firebase XCTest
+        run: bash scripts/package-firebase-xctest-ios.sh
+
+      - name: Inspect Firebase package
+        run: |
+          echo '--- ZIP root ---'
+          unzip -Z1 dist/MyMap-Firebase-XCTest.zip | sed -n '1,80p'
+          echo '--- SHA-256 ---'
+          cat dist/MyMap-Firebase-XCTest.zip.sha256
+
+      - name: Upload Firebase XCTest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyMap-Firebase-XCTest
+          path: |
+            dist/MyMap-Firebase-XCTest.zip
+            dist/MyMap-Firebase-XCTest.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
