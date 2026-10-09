@@ -9,10 +9,10 @@ const source = fs.readFileSync(
 );
 const appSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/services/adsPrivacy.ts'), 'utf8');
 const androidSource = fs.readFileSync(
-  path.resolve(__dirname, '..', 'android/app/src/main/java/com/pnhl/vibecoding/PlatformLocationModule.kt'),
+  path.resolve(__dirname, '..', 'plugins/native/PlatformLocationModule.kt'),
   'utf8',
 );
-const gradleSource = fs.readFileSync(path.resolve(__dirname, '..', 'android/app/build.gradle'), 'utf8');
+const gradleSource = fs.readFileSync(path.resolve(__dirname, '..', 'plugins/withMyMapAndroid.ts'), 'utf8');
 
 test('native ad requests a landscape creative and renders registered media assets', () => {
   assert.match(source, /aspectRatio:\s*NativeMediaAspectRatio\.LANDSCAPE/);

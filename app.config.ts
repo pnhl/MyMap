@@ -31,7 +31,7 @@ export default ({config}: ConfigContext): ExpoConfig => {
  return {
   ...config,name:config.name||'MyMap',slug:config.slug||'mymap',version:release.version,
   scheme:Array.from(new Set([...schemes,'mymap',release.applicationId,...(reversed?[reversed]:[])])),extra:{...config.extra,firebaseOAuth:oauth,...(process.env.EAS_PROJECT_ID?{eas:{...config.extra?.eas,projectId:process.env.EAS_PROJECT_ID}}:{})},
-  android:{...config.android,package:release.applicationId,versionCode:release.build,allowBackup:false,...(linkDomain?{intentFilters:[...(config.android?.intentFilters||[]),{action:'VIEW',autoVerify:true,category:['BROWSABLE','DEFAULT'],data:[{scheme:'https',host:linkDomain,pathPrefix:'/__/auth/links'}]}]}:{}),...(existsSync(androidFirebase)?{googleServicesFile:androidFirebase}:{})},
+  android:{...config.android,package:release.applicationId,versionCode:release.build,allowBackup:false,...(linkDomain?{intentFilters:[...(config.android?.intentFilters||[]),{action:'VIEW',autoVerify:true,category:['BROWSABLE','DEFAULT'],data:[{scheme:'https',host:linkDomain,pathPrefix:'/__/auth/links'}]}]}:{}),...(existsSync(androidFirebase)?{googleServicesFile:androidFirebase}:production?{}:{googleServicesFile:undefined})},
   ios:{...config.ios,bundleIdentifier:release.applicationId,buildNumber:String(release.build),usesAppleSignIn:true,
    ...(linkDomain?{associatedDomains:Array.from(new Set([...(config.ios?.associatedDomains||[]),'applinks:'+linkDomain]))}:{}),
    ...(existsSync(iosFirebase)?{googleServicesFile:iosFirebase}:{}),
