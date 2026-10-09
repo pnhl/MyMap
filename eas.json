@@ -1,7 +1,7 @@
 {
  "cli": {"version": ">= 16.0.0", "appVersionSource": "local"},
  "build": {
-  "base": {"autoIncrement": false, "node": "24.14.0", "env": {"MYMAP_RELEASE": "true", "EXPO_PUBLIC_ENABLE_TEST_ADS": "false", "RNLLAMA_SKIP_POSTINSTALL": "1"}},
+  "base": {"autoIncrement": false, "environment": "production", "node": "24.14.0", "env": {"MYMAP_RELEASE": "true", "EXPO_PUBLIC_ENABLE_TEST_ADS": "false", "RNLLAMA_SKIP_POSTINSTALL": "1"}},
   "ios-store": {"extends": "base", "distribution": "store", "env": {"MYMAP_STORE": "ios"}, "ios": {"buildConfiguration": "Release"}},
   "android-play": {"extends": "base", "distribution": "store", "env": {"MYMAP_STORE": "play"}, "android": {"gradleCommand": ":app:bundleGoogleRelease", "buildType": "app-bundle"}},
   "android-apk": {"extends": "android-play", "android": {"gradleCommand": ":app:assembleGoogleRelease", "buildType": "apk"}},

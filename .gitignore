@@ -27,4 +27,5 @@ GoogleService-Info.plist
 *.p8
 credentials.json
 api_key.txt
+.eas-builds/
 release-provenance.json

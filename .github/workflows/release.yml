@@ -1,0 +1,162 @@
+name: Three-store release
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: Build all store artifacts from this commit
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/check-source-secrets.cjs
+      - run: node scripts/release-check.cjs --source-only
+      - run: npm run typecheck
+      - run: npm test
+      - run: python3 -m unittest discover -s tests -p '*_test.py'
+  android:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_release
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [play, amazon]
+    env:
+      MYMAP_STORE: ${{ matrix.store }}
+      MYMAP_RELEASE: 'true'
+      EXPO_PUBLIC_ENABLE_TEST_ADS: 'false'
+      RNLLAMA_SKIP_POSTINSTALL: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --ignore-scripts
+      - name: Restore private build configuration
+        env:
+          FIREBASE_ANDROID_BASE64: ${{ secrets.FIREBASE_ANDROID_BASE64 }}
+          MYMAP_PUBLIC_ENV: ${{ secrets.MYMAP_PUBLIC_ENV }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: node scripts/restore-ci-config.cjs android
+      - run: npm run prepare:android
+      - run: npx expo prebuild --platform android --no-install
+      - name: Compile signed releases
+        working-directory: android
+        run: |
+          if [ "$MYMAP_STORE" = play ]; then
+            ./gradlew :app:assembleGoogleRelease :app:bundleGoogleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a -Pandroid.enableMinifyInReleaseBuilds=true -Pandroid.enableShrinkResourcesInReleaseBuilds=true --max-workers=2
+          else
+            ./gradlew :app:assembleAmazonRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a -Pandroid.enableMinifyInReleaseBuilds=true -Pandroid.enableShrinkResourcesInReleaseBuilds=true --max-workers=2
+          fi
+      - name: Verify artifacts
+        run: |
+          mkdir -p dist/releases
+          if [ "$MYMAP_STORE" = play ]; then
+            cp android/app/build/outputs/apk/google/release/*.apk dist/releases/play.apk
+            cp android/app/build/outputs/bundle/googleRelease/*.aab dist/releases/play.aab
+            python3 scripts/verify-artifacts.py --play dist/releases/play.apk --commit "$GITHUB_SHA"
+          else
+            cp android/app/build/outputs/apk/amazon/release/*.apk dist/releases/amazon.apk
+            python3 scripts/verify-artifacts.py --amazon dist/releases/amazon.apk --commit "$GITHUB_SHA"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.store }}
+          path: dist/releases/
+          if-no-files-found: error
+  ios-unsigned:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_release
+    needs: checks
+    runs-on: macos-latest
+    env:
+      MYMAP_STORE: ios
+      MYMAP_RELEASE: 'true'
+      EXPO_PUBLIC_ENABLE_TEST_ADS: 'false'
+      RNLLAMA_SKIP_POSTINSTALL: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Restore private iOS configuration
+        env:
+          FIREBASE_IOS_PLIST_BASE64: ${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}
+          MYMAP_PUBLIC_ENV: ${{ secrets.MYMAP_PUBLIC_ENV }}
+        run: node scripts/restore-ci-config.cjs ios
+      - run: bash scripts/build-ios-unsigned.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned
+          path: dist/releases/*.ipa
+          if-no-files-found: error
+  ios-store:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_release
+    needs: checks
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_BUILD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build signed iOS through EAS
+        run: npx --no-install eas build --platform ios --profile ios-store --non-interactive --wait --json > eas-result.json
+      - run: node scripts/download-eas-artifact.cjs eas-result.json dist/releases/ios-signed.ipa
+      - run: python3 scripts/verify-artifacts.py --ios dist/releases/ios-signed.ipa --commit "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-signed
+          path: dist/releases/
+          if-no-files-found: error
+  parity:
+    needs: [android, ios-store, ios-unsigned]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Restore bundletool (pinned checksum in configuration)
+        run: python3 scripts/fetch-bundletool.py
+      - name: Compare all release artifacts from this commit
+        env:
+          BUNDLETOOL_JAR: .local/bundletool.jar
+        run: python3 scripts/verify-artifacts.py --ios artifacts/ios-signed/ios-signed.ipa --play artifacts/play/play.apk --amazon artifacts/amazon/amazon.apk --aab artifacts/play/play.aab --commit "$GITHUB_SHA" --complete
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-verification
+          path: dist/releases/verification.json

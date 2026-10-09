@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "15.0.2",
+    "@expo/ui": "~57.0.20",
     "@expo/vector-icons": "^15.0.2",
     "@livekit/react-native": "3.0.0",
     "@livekit/react-native-expo-plugin": "1.0.3",
@@ -43,7 +44,9 @@
     "expo-audio": "~57.0.5",
     "expo-background-task": "~57.0.19",
     "expo-blur": "~57.0.2",
+    "expo-build-properties": "~57.0.22",
     "expo-camera": "57.0.5",
+    "expo-constants": "~57.0.3",
     "expo-crypto": "~57.0.3",
     "expo-document-picker": "57.0.3",
     "expo-file-system": "~57.0.6",
@@ -62,6 +65,7 @@
     "expo-video": "~57.0.5",
     "expo-video-thumbnails": "~57.0.2",
     "expo-web-browser": "~57.0.3",
+    "expo-widgets": "~57.0.23",
     "jpeg-js": "^0.4.4",
     "jsqr": "^1.4.0",
     "livekit-client": "2.22.3",
@@ -74,16 +78,13 @@
     "react-native-google-mobile-ads": "16.3.4",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-webview": "13.16.1",
-    "@expo/ui": "~57.0.20",
-    "expo-widgets": "~57.0.23",
-    "expo-build-properties": "~57.0.22",
-    "expo-constants": "~57.0.3"
+    "react-native-webview": "13.16.1"
   },
   "devDependencies": {
     "@types/geojson": "7946.0.16",
     "@types/node": "^26.6.2",
     "@types/react": "~19.2.0",
+    "eas-cli": "24.7.0",
     "typescript": "~6.0.3"
   }
 }
