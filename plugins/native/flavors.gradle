@@ -1,0 +1,13 @@
+    flavorDimensions "distribution"
+    productFlavors {
+        google {
+            dimension "distribution"
+            buildConfigField "String", "DISTRIBUTION_CHANNEL", '"android"'
+            buildConfigField "String", "AMAZON_APPSTORE_ID", '""'
+        }
+        amazon {
+            dimension "distribution"
+            buildConfigField "String", "DISTRIBUTION_CHANNEL", '"amazon"'
+            buildConfigField "String", "AMAZON_APPSTORE_ID", '"amzn1.devportal.mobileapp.5da38626eb454bfcb8403c32d2a1e1c5"'
+        }
+    }

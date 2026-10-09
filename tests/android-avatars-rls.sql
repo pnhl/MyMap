@@ -1,0 +1,34 @@
+begin;
+do $$
+declare a uuid;b uuid;c uuid;path_a text;path_b text;v jsonb;
+begin
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-alice"}',true);a:=public.mm_identity();
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-bob"}',true);b:=public.mm_identity();
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-carol"}',true);c:=public.mm_identity();
+ insert into public.vc_connections(requester_id,addressee_id,status) values(a,b,'accepted');
+ path_a:=a::text||'/'||gen_random_uuid()::text||'.jpg';path_b:=b::text||'/'||gen_random_uuid()::text||'.jpg';
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-alice"}',true);
+ execute 'set local role anon';
+ insert into storage.objects(bucket_id,name) values('mymap-avatars',path_a);
+ perform public.mm_profile_update('Avatar QA','',path_a,true);v:=public.mm_profile_read();
+ if v->>'avatar_path'<>path_a or v->>'id'<>a::text then raise exception 'Own avatar does not sync';end if;
+ if public.mm_social_state()->>'profileId'<>a::text then raise exception 'Wrong profile sharing ID';end if;
+ begin insert into storage.objects(bucket_id,name) values('mymap-avatars',path_b);raise exception 'Foreign upload accepted';exception when insufficient_privilege then null;end;
+ begin perform public.mm_profile_update('Avatar QA','',path_b,true);raise exception 'Foreign path accepted';exception when others then if sqlerrm<>'invalid_avatar' then raise;end if;end;
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-carol"}',true);
+ if exists(select 1 from storage.objects where bucket_id='mymap-avatars' and name=path_a) then raise exception 'Private avatar read by stranger';end if;
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-bob"}',true);
+ if not exists(select 1 from storage.objects where bucket_id='mymap-avatars' and name=path_a) then raise exception 'Friend cannot read avatar';end if;
+ if private.mm_avatar_write(path_a) then raise exception 'Friend has avatar delete permission';end if;
+ perform public.mm_social_action('block',a,true);
+ if exists(select 1 from storage.objects where bucket_id='mymap-avatars' and name=path_a) then raise exception 'Blocked avatar readable';end if;
+ if exists(select 1 from public.vc_profiles where id=a) then raise exception 'Blocked profile readable';end if;
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-alice"}',true);
+ perform public.mm_social_action('publish',null,true);
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"avatar-qa-carol"}',true);
+ if not exists(select 1 from storage.objects where bucket_id='mymap-avatars' and name=path_a) then raise exception 'Opt-in public avatar unavailable';end if;
+ if has_table_privilege(current_user,'public.vc_profiles','TRUNCATE') then raise exception 'Client has TRUNCATE permission';end if;
+ execute 'reset role';
+end $$;
+rollback;
+select 'PASS: private avatars, explicit public opt-in, accepted friends, block revocation, upload/delete ownership, attachment guard, no TRUNCATE' as result;

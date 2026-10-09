@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/moment_widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/mymap_widget_background" android:padding="8dp">
+ <ImageView android:id="@+id/moment_image" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="centerCrop" android:contentDescription="Khoảnh khắc MyMap"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:orientation="vertical" android:padding="12dp" android:background="#CC10253B">
+  <TextView android:id="@+id/moment_author" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="MyMap" android:textColor="#70E2D6" android:textSize="12sp" android:maxLines="1"/>
+  <TextView android:id="@+id/moment_caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Khoảnh khắc của bạn bè" android:textColor="#FFFFFF" android:textSize="16sp" android:maxLines="2" android:ellipsize="end"/>
+ </LinearLayout>
+ <TextView android:id="@+id/moment_camera" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="top|end" android:background="#DD10253B" android:gravity="center" android:text="＋" android:textSize="28sp" android:textColor="#FFFFFF" android:contentDescription="Mở camera MyMap"/>
+</FrameLayout>

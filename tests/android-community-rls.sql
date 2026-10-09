@@ -1,0 +1,31 @@
+begin;
+do $$
+declare a uuid;b uuid;staff uuid;doc uuid:=gen_random_uuid();report uuid;v jsonb;
+begin
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-alice"}',true);a:=public.mm_identity();
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-bob"}',true);b:=public.mm_identity();
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-staff"}',true);staff:=public.mm_identity();
+ insert into private.mm_moderators(user_id) values(staff);
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-alice"}',true);
+ execute 'set local role anon';
+ perform public.mm_profile_update('Alice QA','Private introduction');
+ if public.mm_profile_read()->>'bio'<>'Private introduction' then raise exception 'Profile did not sync';end if;
+ perform public.mm_doc_save(doc,'review','{"name":"Review QA","note":"Body QA","place":{"name":"QA","latitude":21,"longitude":105},"rating":4,"visitedAt":1791432000000}',0,'{}',null);
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-bob"}',true);
+ if public.mm_profile_read()->>'bio'='Private introduction' then raise exception 'Cross-account profile';end if;
+ perform public.mm_report_content('document',doc,'spam','QA duplicate report');
+ begin perform public.mm_moderation_queue();raise exception 'Nonstaff reads moderation';exception when others then if sqlerrm<>'moderator_only' then raise;end if;end;
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-staff"}',true);
+ v:=public.mm_moderation_queue();select (row->>'id')::uuid into report from jsonb_array_elements(v)row where row->>'target_id'=doc::text;
+ if report is null then raise exception 'Staff cannot see report';end if;
+ perform public.mm_moderate(report,true,'Hidden by QA');
+ begin perform public.mm_moderate(report,false,'Second decision');raise exception 'Report processed twice';exception when others then if sqlerrm<>'report_already_processed' then raise;end if;end;
+ perform set_config('request.jwt.claims','{"iss":"https://securetoken.google.com/mymap-a3ae4","aud":"mymap-a3ae4","sub":"android-community-bob"}',true);
+ if exists(select 1 from public.mm_documents where id=doc) then raise exception 'Hidden review visible';end if;
+ if exists(select 1 from jsonb_array_elements(public.mm_nearby_content('review',21,105))row where row->>'id'=doc::text) then raise exception 'Hidden review discovered';end if;
+ execute 'reset role';
+ if not exists(select 1 from private.mm_moderation_decisions where report_id=report and moderator_id=staff and hidden) then raise exception 'No moderator audit';end if;
+ if private.mm_vote_confidence(0,0) is not null or private.mm_vote_confidence(10,0)<=private.mm_vote_confidence(1,0) then raise exception 'Invalid confidence bound';end if;
+end $$;
+rollback;
+select 'PASS: profile account isolation, moderation staff gate, decisions audit, visibility after removal, duplicate decision prevention, vote confidence' as result;
