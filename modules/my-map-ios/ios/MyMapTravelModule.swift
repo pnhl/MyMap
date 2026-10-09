@@ -6,6 +6,7 @@ import UIKit
 // iOS has no Android foreground-service or automatic emergency-call equivalent.
 // Motion monitoring is foreground-only; location recording uses expo-location.
 public final class MyMapTravelModule: Module {
+  private var quickActionObserver: NSObjectProtocol?
   private let motion = CMMotionManager()
   private var enabled = false
   private var pendingAt: Double = 0
@@ -29,6 +30,11 @@ public final class MyMapTravelModule: Module {
   }
   public func definition() -> ModuleDefinition {
     Name("MyMapTravel")
+    Events("onQuickAction")
+    AsyncFunction("consumeQuickAction") { () -> String? in
+      let value = UserDefaults.standard.string(forKey: "mymap.quick-action")
+      UserDefaults.standard.removeObject(forKey: "mymap.quick-action"); return value
+    }.runOnQueue(.main)
     AsyncFunction("configureSafety") { (value: Bool, number: String) -> Bool in
       guard !value || self.motion.isDeviceMotionAvailable else { return false }
       self.enabled = value; self.number = number; self.pendingAt = 0
@@ -55,9 +61,10 @@ public final class MyMapTravelModule: Module {
     }.runOnQueue(.main)
     AsyncFunction("getBuildInfo") { ["channel": "ios", "appstoreId": ""] }
     OnCreate {
+      self.quickActionObserver = NotificationCenter.default.addObserver(forName: Notification.Name("MyMapQuickAction"), object: nil, queue: .main) { [weak self] _ in self?.sendEvent("onQuickAction", [:]) }
       self.enabled = UserDefaults.standard.bool(forKey: "mymap.ios.safety.enabled")
       self.number = UserDefaults.standard.string(forKey: "mymap.ios.safety.number") ?? "112"
     }
-    OnDestroy { self.motion.stopDeviceMotionUpdates() }
+    OnDestroy { self.motion.stopDeviceMotionUpdates(); if let observer = self.quickActionObserver { NotificationCenter.default.removeObserver(observer) } }
   }
 }

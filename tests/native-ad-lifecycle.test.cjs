@@ -47,6 +47,7 @@ function fixture(request) {
     },
   };
   const native = {
+    Platform:{OS:'android'},
     AppState:{currentState:appState,addEventListener:(_,listener) => {stateListener=listener;return {remove:()=>{stateListener=null;}};}},
     Image:'Image',View:'View',StyleSheet:{create:styles=>styles},
   };

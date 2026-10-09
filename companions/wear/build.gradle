@@ -1,0 +1,16 @@
+plugins { id 'com.android.application' version '8.12.0'; id 'org.jetbrains.kotlin.android' version '2.3.20' }
+def releaseInfo = new groovy.json.JsonSlurper().parse(file('../../release.json'))
+def credentials = new Properties()
+def signingFile = file('../../.signing/release.properties')
+if (!signingFile.exists()) throw new GradleException('Restore the existing private phone signing configuration for Wear.')
+signingFile.withInputStream { credentials.load(it) }
+android {
+ namespace 'com.pnhl.vibecoding.wear'
+ compileSdk 36
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+ defaultConfig { applicationId releaseInfo.applicationId; minSdk 30; targetSdk 36; versionCode releaseInfo.build; versionName releaseInfo.version }
+ signingConfigs { release { storeFile file('../../android/app/' + credentials.getProperty('storeFile')); storePassword credentials.getProperty('storePassword'); keyAlias credentials.getProperty('keyAlias'); keyPassword credentials.getProperty('keyPassword') } }
+ buildTypes { release { signingConfig signingConfigs.release; minifyEnabled true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt') } }
+}
+kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }
+dependencies { implementation 'com.google.android.gms:play-services-wearable:20.0.1' }

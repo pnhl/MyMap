@@ -336,7 +336,7 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
       source = source.replace('    signingConfigs {', readFileSync(join(__dirname, 'native', 'flavors.gradle'), 'utf8') + '\n    signingConfigs {');
     }
     if (!source.includes('amazon-appstore-sdk')) {
-      source = source.replace('dependencies {', 'dependencies {\n    googleImplementation("androidx.car.app:app:1.7.0")\n    googleImplementation("androidx.car.app:app-projected:1.7.0")\n    googleImplementation("org.maplibre.gl:android-sdk-opengl:13.6.1")\n    amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")');
+      source = source.replace('dependencies {', 'dependencies {\n    googleImplementation("com.google.android.gms:play-services-wearable:20.0.1")\n    googleImplementation("androidx.car.app:app:1.7.0")\n    googleImplementation("androidx.car.app:app-projected:1.7.0")\n    googleImplementation("org.maplibre.gl:android-sdk-opengl:13.6.1")\n    amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")');
     }
     mod.modResults.contents = source;
     return mod;
@@ -396,10 +396,14 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
     mkdirSync(carPackage, { recursive: true });
     mkdirSync(join(googleRoot, 'res', 'xml'), { recursive: true });
     copyFileSync(join(__dirname, 'native', 'MyMapCarService.kt'), join(carPackage, 'MyMapCarService.kt'));
+    copyFileSync(join(__dirname, 'native', 'MyMapWearBridge.kt'), join(carPackage, 'MyMapWearBridge.kt'));
+    mkdirSync(join(googleRoot,'res','values'),{recursive:true});
+    writeFileSync(join(googleRoot,'res','values','wear.xml'),'<resources><string-array name="android_wear_capabilities"><item>mymap_phone</item></string-array></resources>');
     copyFileSync(join(__dirname, 'native', 'google-manifest.xml'), join(googleRoot, 'AndroidManifest.xml'));
     copyFileSync(join(__dirname, 'native', 'automotive_app_desc.xml'), join(googleRoot, 'res', 'xml', 'automotive_app_desc.xml'));
     const proguard = join(projectRoot, 'app', 'proguard-rules.pro');
     let rules = readFileSync(proguard, 'utf8');
+    if(!rules.includes('-keep class com.pnhl.vibecoding.MyMapWearBridge'))rules+='\n-keep class com.pnhl.vibecoding.MyMapWearBridge { *; }\n';
     // The prefixed WebRTC AAR loads this namespace from JNI_OnLoad. Its upstream
     // org.jni_zero rule does not cover livekit.org.jni_zero, so R8 strips JniInit.
     if (!rules.includes('-keep class livekit.org.jni_zero.**')) rules += '\n# Preserve LiveKit-prefixed JNI registration in optimized release builds.\n-keep class livekit.org.jni_zero.** { *; }\n';

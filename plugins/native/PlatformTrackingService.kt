@@ -30,7 +30,11 @@ class PlatformTrackingService:Service(),LocationListener{
   if(!prefs.getBoolean("platform_tracking",false)||ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){stopSelf();return START_NOT_STICKY}
   if(Build.VERSION.SDK_INT>=26)(getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(NotificationChannel("mymap_platform_tracking","MyMap · Hành trình",NotificationManager.IMPORTANCE_LOW))
   val launch=PendingIntent.getActivity(this,2201,packageManager.getLaunchIntentForPackage(packageName),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  startForeground(2201,NotificationCompat.Builder(this,"mymap_platform_tracking").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("MyMap đang ghi hành trình").setContentText("Vị trí được lưu riêng tư trên thiết bị của bạn.").setContentIntent(launch).setOngoing(true).build())
+  fun shortcut(url:String,id:Int)=PendingIntent.getActivity(this,id,Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)).setPackage(packageName),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  startForeground(2201,NotificationCompat.Builder(this,"mymap_platform_tracking").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("MyMap đang ghi hành trình").setContentText("Vị trí được lưu riêng tư trên thiết bị của bạn.").setContentIntent(launch).setOngoing(true)
+   .addAction(android.R.drawable.ic_menu_mylocation,"Ghi hành trình",shortcut("mymap://smart",2202))
+   .addAction(android.R.drawable.ic_menu_camera,"Chụp nhanh",shortcut("mymap://camera",2203))
+   .addAction(android.R.drawable.ic_dialog_alert,"SOS",shortcut("mymap://sos",2204)).build())
   val interval=prefs.getLong("platform_interval",5000);val distance=prefs.getFloat("platform_distance",5f)
   val providers=listOf(LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER).filter {runCatching{locations.isProviderEnabled(it)}.getOrDefault(false)}
   locations.removeUpdates(this)

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const EXTENSIONS = {
+  wearOs: ['Wear OS', 'Nhận cảnh báo trên đồng hồ có MyMap; nút SOS gửi yêu cầu để bạn xác nhận trên điện thoại Android đã ghép đôi.'],
   iosWatch: ['Apple Watch', 'Hiển thị hướng dẫn và gửi yêu cầu SOS về iPhone đã ghép đôi; xác nhận trên điện thoại trước khi gọi.'],
   carPlay: ['CarPlay', 'Hiển thị tuyến trên màn hình xe khi bản cài đặt có quyền CarPlay của Apple.'],
   calls: ['Gọi thoại, video và bộ đàm', 'Cuộc gọi LiveKit riêng trong hội thoại; cần mạng và quyền micro/camera.'],

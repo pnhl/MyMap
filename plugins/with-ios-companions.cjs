@@ -37,6 +37,9 @@ module.exports=(config,{carPlay=false,watch=false}={})=>{
     const directory=path.join(c.modRequest.platformProjectRoot,name);
     fs.mkdirSync(directory,{recursive:true});
     fs.copyFileSync(path.join(c.modRequest.projectRoot,'companions/watch/MyMapWatchApp.swift'),path.join(directory,'MyMapWatchApp.swift'));
+    const iconDir=path.join(directory,'Assets.xcassets','AppIcon.appiconset');fs.mkdirSync(iconDir,{recursive:true});
+    fs.copyFileSync(path.join(c.modRequest.projectRoot,config.icon||'assets/branding/app-icon-v2.png'),path.join(iconDir,'AppIcon.png'));
+    fs.writeFileSync(path.join(iconDir,'Contents.json'),JSON.stringify({images:[{filename:'AppIcon.png',idiom:'universal',platform:'watchos',size:'1024x1024'}],info:{author:'xcode',version:1}}));
     if(project.pbxTargetByName(name))return c;
     const target=project.addTarget(name,'watch2_app',name,`${config.ios.bundleIdentifier}.watchkitapp`);
     // Modern single-target watchOS SwiftUI app (watchOS 9+).
@@ -49,13 +52,13 @@ module.exports=(config,{carPlay=false,watch=false}={})=>{
       TARGETED_DEVICE_FAMILY:'4',SWIFT_VERSION:'5.0',GENERATE_INFOPLIST_FILE:'YES',
       INFOPLIST_KEY_WKApplication:'YES',INFOPLIST_KEY_WKCompanionAppBundleIdentifier:`"${config.ios.bundleIdentifier}"`,
       INFOPLIST_KEY_CFBundleDisplayName:'MyMap',MARKETING_VERSION:config.version,CURRENT_PROJECT_VERSION:config.ios.buildNumber,
-      SKIP_INSTALL:'YES',ASSETCATALOG_COMPILER_APPICON_NAME:'""',INFOPLIST_FILE:'""',
+      SKIP_INSTALL:'YES',ASSETCATALOG_COMPILER_APPICON_NAME:'AppIcon',INFOPLIST_FILE:'""',
     });
-    const group=project.addPbxGroup(['MyMapWatchApp.swift'],name,name);
+    const group=project.addPbxGroup(['MyMapWatchApp.swift','Assets.xcassets'],name,name);
     project.addToPbxGroup(group.uuid,project.getFirstProject().firstProject.mainGroup);
     project.addBuildPhase([name+'/MyMapWatchApp.swift'],'PBXSourcesBuildPhase','Sources',target.uuid);
     project.addBuildPhase([],'PBXFrameworksBuildPhase','Frameworks',target.uuid);
-    project.addBuildPhase([],'PBXResourcesBuildPhase','Resources',target.uuid);
+    project.addBuildPhase([name+'/Assets.xcassets'],'PBXResourcesBuildPhase','Resources',target.uuid);
     return c;
   });
   return config;

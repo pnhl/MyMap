@@ -12,8 +12,6 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.provider.Settings
 import androidx.exifinterface.media.ExifInterface
 import expo.modules.kotlin.modules.Module
@@ -135,23 +133,16 @@ class MyMapSafetyModule : Module(), SensorEventListener {
     // --- Foreground Service Control ---
     AsyncFunction("startForegroundTracking") {
       val context = appContext.reactContext ?: return@AsyncFunction false
-      val intent = Intent(context, MyMapForegroundService::class.java).apply {
-        action = MyMapForegroundService.ACTION_START_TRACKING
-      }
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(intent)
-      } else {
-        context.startService(intent)
-      }
+      // Delegate to the real recorder and shared permission flow in the phone UI.
+      context.getSharedPreferences("mymap_travel",Context.MODE_PRIVATE).edit().putString("tracking_shortcut","start").commit()
+      context.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse("mymap://smart")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
       true
     }
 
     AsyncFunction("stopForegroundTracking") {
       val context = appContext.reactContext ?: return@AsyncFunction false
-      val intent = Intent(context, MyMapForegroundService::class.java).apply {
-        action = MyMapForegroundService.ACTION_STOP_TRACKING
-      }
-      context.startService(intent)
+      context.getSharedPreferences("mymap_travel",Context.MODE_PRIVATE).edit().putString("tracking_shortcut","stop").commit()
+      context.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse("mymap://smart")).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
       true
     }
 
@@ -233,21 +224,18 @@ class MyMapSafetyModule : Module(), SensorEventListener {
     }
 
     // --- Wear OS Companion Bridge ---
+    AsyncFunction("configureWearDevice") { enabled: Boolean ->
+      appContext.reactContext?.getSharedPreferences("mymap_travel", Context.MODE_PRIVATE)?.edit()?.putBoolean("wear_enabled", enabled)?.apply()
+    }
     AsyncFunction("notifyWearDevice") { type: String, message: String ->
       val context = appContext.reactContext ?: return@AsyncFunction false
-      val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val pattern = if (type == "sos") {
-          longArrayOf(0, 300, 100, 300, 100, 500)
-        } else {
-          longArrayOf(0, 200, 100, 200)
-        }
-        vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
-      } else {
-        @Suppress("DEPRECATION")
-        vibrator?.vibrate(500)
-      }
-      true
+      if (!context.getSharedPreferences("mymap_travel", Context.MODE_PRIVATE).getBoolean("wear_enabled", false)) return@AsyncFunction false
+      // This implementation is absent from the Amazon variant.
+      runCatching {
+        Class.forName("com.pnhl.vibecoding.MyMapWearBridge")
+          .getMethod("notify", Context::class.java, String::class.java, String::class.java)
+          .invoke(null, context, type, message) as Boolean
+      }.getOrDefault(false)
     }
 
     // --- Hardware Battery Status ---

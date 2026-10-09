@@ -1,4 +1,4 @@
 {
   "platforms": ["apple"],
-  "apple": {"modules": ["MyMapTravelModule", "MyMapMomentsModule", "MyMapCompanionModule"]}
+  "apple": {"modules": ["MyMapTravelModule", "MyMapMomentsModule", "MyMapCompanionModule"], "appDelegateSubscribers": ["MyMapQuickActionSubscriber"]}
 }

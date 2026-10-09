@@ -8,6 +8,10 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { ThemeProvider, useAppTheme } from './src/ui/theme';
 import {startIOSCompanions} from './src/services/iosCompanions';
 import {startNotificationDelivery} from './src/services/notificationDelivery';
+import {startQuickActions} from './src/services/quickActions';
+import {getCurrentUser} from './src/services/auth';
+import {startWearCompanion} from './src/services/wearCompanion';
+import {startFireGeofenceFallback} from './src/services/geofencing';
 import { restoreTracking,startTracking,stopTracking } from './src/services/locationTracking';
 import {initializeLanguage} from './src/i18n/languages';
 import {SafetyMonitor} from './src/components/SafetyMonitor';
@@ -18,14 +22,20 @@ import {initializeMusicPlayback} from './src/services/musicPlayback';
 import {AppLock} from './src/components/AppLock';
 import {startSharedSync} from './src/services/sharedSync';
 const navigationRef=createNavigationContainerRef<RootStackParamList>();
-let pendingSOS=false;
-const openSOS=()=>{if(navigationRef.isReady())navigationRef.navigate('SOS');else pendingSOS=true;};
-const momentLinking:LinkingOptions<RootStackParamList>={prefixes:['mymap://'],config:{initialRouteName:'Tabs',screens:{Moments:'moments',MomentDetail:'moment/:momentId',MomentCamera:'camera',SOS:'sos',Smart:'smart',Search:'search'}}};
+let pendingAction:'SOS'|'Smart'|'MomentCamera'|null=null;
+let pendingNotification:Record<string,unknown>|null=null;
+const openNotification=(data:Record<string,unknown>)=>{
+ if(!navigationRef.isReady()){pendingNotification=data;return;}
+ void getCurrentUser().then(user=>{if(user?.id!==data.owner||!navigationRef.isReady())return;if(typeof data.callId==='string')navigationRef.navigate('Call',{callId:data.callId});else if(typeof data.roomId==='string')navigationRef.navigate('Chat',{roomId:data.roomId});});
+};
+const openAction=(name:'SOS'|'Smart'|'MomentCamera')=>{if(navigationRef.isReady())navigationRef.navigate(name);else pendingAction=name;};
+const openSOS=()=>openAction('SOS');
+const momentLinking:LinkingOptions<RootStackParamList>={prefixes:['mymap://',...(process.env.EXPO_PUBLIC_EMAIL_LINK_DOMAIN?['https://'+process.env.EXPO_PUBLIC_EMAIL_LINK_DOMAIN]:[])],config:{initialRouteName:'Tabs',screens:{Login:'__/auth/links',Moments:'moments',MomentDetail:'moment/:momentId',MomentCamera:'camera',SOS:'sos',Smart:'smart',Search:'search'}}};
 
 function ThemedApp() {
  const {theme}=useAppTheme();
  const navigationTheme=useMemo(()=>({...DarkTheme,colors:{...DarkTheme.colors,primary:theme.colors.primary,background:theme.colors.bg,card:theme.colors.glassStrong,text:theme.colors.text,border:theme.colors.border,notification:theme.colors.danger}}),[theme]);
- return <SafeAreaProvider><View style={{flex:1}} onTouchStart={()=>travelNative?.userInteraction()}><StatusBar barStyle="light-content" translucent backgroundColor="transparent"/><NavigationContainer ref={navigationRef} onReady={()=>{if(pendingSOS){pendingSOS=false;openSOS();}}} theme={navigationTheme} linking={momentLinking}><AppNavigator/></NavigationContainer><SafetyMonitor/><AppLock/></View></SafeAreaProvider>;
+ return <SafeAreaProvider><View style={{flex:1}} onTouchStart={()=>travelNative?.userInteraction()}><StatusBar barStyle="light-content" translucent backgroundColor="transparent"/><NavigationContainer ref={navigationRef} onReady={()=>{if(pendingAction){const action=pendingAction;pendingAction=null;openAction(action);}if(pendingNotification){const data=pendingNotification;pendingNotification=null;openNotification(data);}}} theme={navigationTheme} linking={momentLinking}><AppNavigator/></NavigationContainer><SafetyMonitor/><AppLock/></View></SafeAreaProvider>;
 }
 
 function BrandLaunchScreen() {
@@ -53,7 +63,10 @@ export default function App(){
  useEffect(()=>startMomentSync(),[]);
  useEffect(()=>startSharedSync(),[]);
  useEffect(()=>startIOSCompanions(openSOS),[]);
- useEffect(()=>startNotificationDelivery(data=>{if(!navigationRef.isReady())return;if(typeof data.callId==='string')navigationRef.navigate('Call',{callId:data.callId});else if(typeof data.roomId==='string')navigationRef.navigate('Chat',{roomId:data.roomId});}),[]);
+ useEffect(()=>startQuickActions(openAction),[]);
+ useEffect(()=>startWearCompanion(),[]);
+ useEffect(()=>startFireGeofenceFallback(),[]);
+ useEffect(()=>startNotificationDelivery(openNotification),[]);
  useEffect(()=>{
   const restore=async()=>{try{const shortcut=await travelNative?.consumeTrackingShortcut?.();if(shortcut==='start')await startTracking();else if(shortcut==='stop')await stopTracking();await restoreTracking();}catch{/* Smart screen exposes permission/recorder status and allows retry. */}};
   if(AppState.currentState==='active')void restore();

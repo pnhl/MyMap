@@ -5,7 +5,7 @@ module.exports=config=>{
   const app=c.modResults.manifest.application[0];
   app.$['android:allowBackup']='false';app.$['android:fullBackupContent']='@xml/mymap_backup_rules';app.$['android:dataExtractionRules']='@xml/mymap_data_extraction_rules';
   c.modResults.manifest.$['xmlns:tools']='http://schemas.android.com/tools';
-  const removed=['android.permission.SYSTEM_ALERT_WINDOW','android.permission.READ_EXTERNAL_STORAGE','android.permission.WRITE_EXTERNAL_STORAGE','android.permission.ACTIVITY_RECOGNITION'];
+  const removed=['android.permission.SYSTEM_ALERT_WINDOW','android.permission.READ_EXTERNAL_STORAGE','android.permission.WRITE_EXTERNAL_STORAGE','android.permission.ACTIVITY_RECOGNITION','com.android.launcher.permission.READ_SETTINGS','com.android.launcher.permission.WRITE_SETTINGS','com.android.launcher.permission.INSTALL_SHORTCUT','com.android.launcher.permission.UNINSTALL_SHORTCUT'];
   c.modResults.manifest['uses-permission']=(c.modResults.manifest['uses-permission']||[]).filter(p=>!removed.includes(p.$['android:name']));
   for(const name of removed)c.modResults.manifest['uses-permission'].push({$:{'android:name':name,'tools:node':'remove'}});
   if(process.env.MYMAP_STORE==='amazon'){

@@ -1,18 +1,21 @@
 import {TextInput} from '../ui/TextInput';
-import React,{useCallback,useState} from 'react';
+import React,{useCallback,useEffect,useState} from 'react';
 import {View,Switch,Pressable,Platform} from 'react-native';
 import {useFocusEffect,useNavigation} from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import {GlassSurface,GlassButton,glassColors} from '../ui/glass';
 import {Text} from '../ui/Text';
 import {getNavigationPreferences,saveNavigationPreferences,DEFAULT_NAVIGATION_PREFERENCES,type NavigationPreferences} from '../services/navigationPreferences';
-import {configureSafety,getSafetyState} from '../services/travelPlatform';
+import {configureSafety,getSafetyState,travelNative} from '../services/travelPlatform';
 import {LANGUAGES,setLanguage,useLanguage,translate} from '../i18n/languages';
 import {ActionSheet} from '../ui/ActionSheet';
-import {AdsConsent} from 'react-native-google-mobile-ads';
+import {adsSdkAvailable} from '../services/nativeSdks';
+import {isAmazonLocationDevice} from '../services/platformLocation';
 import {resetAdsConsent} from '../services/adsPrivacy';
 export function TravelSettings(){
  const nav=useNavigation<any>();const language=useLanguage();
+ const[isFire,setIsFire]=useState(false);
+ useEffect(()=>{void Promise.all([isAmazonLocationDevice(),travelNative?.getBuildInfo()]).then(([device,info])=>setIsFire(device||info?.channel==='amazon')).catch(()=>{});},[]);
  const[preferences,setPreferences]=useState(DEFAULT_NAVIGATION_PREFERENCES),[limit,setLimit]=useState(''),[safety,setSafety]=useState(false),[number,setNumber]=useState('112'),[languageOpen,setLanguageOpen]=useState(false),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false);
  useFocusEffect(useCallback(()=>{let active=true;void Promise.all([getNavigationPreferences(),getSafetyState()]).then(([p,s])=>{if(!active)return;setPreferences(p);setLimit(p.customSpeedKmh==null?'':String(p.customSpeedKmh));setSafety(s.enabled);setNumber(s.emergencyNumber);});return()=>{active=false;};},[]));
  async function action(work:()=>Promise<void>){if(busy)return;setBusy(true);setError(null);try{await work();}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
@@ -32,11 +35,11 @@ export function TravelSettings(){
    <Text style={{fontSize:12,color:glassColors.muted,lineHeight:19}}>Để trống để chỉ dùng giới hạn đường. Mức bạn đặt không vô hiệu hóa cảnh báo giới hạn thấp hơn.</Text>
    <TextInput accessibilityLabel="Mức cảnh báo tốc độ" value={limit} onChangeText={setLimit} placeholder="Ví dụ: 50" keyboardType="numeric" placeholderTextColor={glassColors.muted} style={{color:'#fff',backgroundColor:'#101B30',padding:12,borderRadius:12}}/>
    <GlassButton disabled={busy} onPress={()=>void action(async()=>{const n=limit.trim()?Number(limit):null;if(n!=null&&(!Number.isFinite(n)||n<5||n>300))throw new Error('Nhập mức từ 5 đến 300 km/h hoặc để trống.');await update({customSpeedKmh:n});})}><Text>Lưu</Text></GlassButton>
-   {row('Android Auto','Bản Android có màn hình bản đồ và hướng dẫn riêng trên xe tương thích. Chọn điểm đến trước trên điện thoại; không có quảng cáo trên màn hình xe.',()=>nav.navigate('Legal',{document:'about'}))}
+   {Platform.OS==='ios'?row('CarPlay','Cần bản iOS có quyền CarPlay do Apple cấp và xe tương thích. Chọn điểm đến trên điện thoại trước khi kết nối.',()=>nav.navigate('Legal',{document:'about'})):!isFire&&row('Android Auto','Có bản đồ và hướng dẫn trên xe tương thích. Chọn điểm đến trước trên điện thoại; không có quảng cáo trên màn hình xe.',()=>nav.navigate('Legal',{document:'about'}))}
   </GlassSurface>
   <GlassSurface style={{padding:17,gap:9}}><Text style={{fontSize:20,fontWeight:'800'}}>An toàn khi di chuyển</Text>
    {toggle('Phát hiện va chạm & rơi',Platform.OS==='ios'?'Theo dõi cảm biến khi MyMap đang mở. iOS không cho ứng dụng này giám sát va chạm liên tục khi khóa máy.':'Theo dõi cảm biến nền với thông báo thường trực. Va chạm hoặc rơi nghi ngờ sẽ hiện cảnh báo để bạn kiểm tra.',safety,v=>void action(async()=>{if(v&&Platform.OS==='android'){const p=await Notifications.requestPermissionsAsync();if(!p.granted)throw new Error('Cần quyền thông báo để cảnh báo sự cố khi khóa máy.');}await configureSafety(v,number);setSafety(v);}))}
-   <Text style={{fontSize:12,lineHeight:20,color:glassColors.muted}}>Nếu ghi nhận rơi ước tính trên 20 m kèm rơi tự do và va chạm, MyMap chờ 5 phút không có tương tác hoặc mở khóa rồi kích hoạt trình gọi khi ứng dụng đang mở; ở nền sẽ hiện thông báo có nút mở số. Android vẫn yêu cầu ấn Gọi. Thiếu khí áp kế thì không thể xác định rơi trên 20 m.</Text>
+   <Text style={{fontSize:12,lineHeight:20,color:glassColors.muted}}>{Platform.OS==='ios'?'Khi ứng dụng đang mở, cảm biến có thể nhận diện va chạm hoặc rơi nghi ngờ và nhắc bạn mở SOS. Bản iOS không ước tính độ cao rơi hay tự gọi sau 5 phút.': 'Nếu ghi nhận rơi ước tính trên 20 m kèm rơi tự do và va chạm, MyMap chờ 5 phút không có tương tác hoặc mở khóa rồi kích hoạt trình gọi khi ứng dụng đang mở; ở nền sẽ hiện thông báo có nút mở số. Android vẫn yêu cầu ấn Gọi. Thiếu khí áp kế thì không thể xác định rơi trên 20 m.'}</Text>
    <Text style={{fontSize:14,fontWeight:'800'}}>Số khẩn cấp trên thiết bị này</Text>
    <TextInput accessibilityLabel="Số khẩn cấp" value={number} onChangeText={setNumber} keyboardType="phone-pad" style={{color:'#fff',backgroundColor:'#101B30',padding:12,borderRadius:12}}/>
    <Text style={{fontSize:12,color:glassColors.muted,lineHeight:19}}>112 là số chung tại Việt Nam từ 23/8/2025 và tại nhiều nước. Khi ra nước ngoài, kiểm tra và đặt đúng số địa phương (ví dụ 911 tại Mỹ). Fire tablet thường không có trình gọi điện.</Text>
@@ -48,7 +51,7 @@ export function TravelSettings(){
    {row('Điều khoản sử dụng','Đọc bản đầy đủ, luôn có sẵn ở đây.',()=>nav.navigate('Legal',{document:'terms'}))}
    {row('Chính sách quyền riêng tư','Dữ liệu, quyền ứng dụng và lựa chọn của bạn.',()=>nav.navigate('Legal',{document:'privacy'}))}
    {row('Giới thiệu MyMap','Tính năng, nền tảng, giấy phép và giới hạn thiết bị.',()=>nav.navigate('Legal',{document:'about'}))}
-   {row('Lựa chọn quyền riêng tư quảng cáo','Xem hoặc thay đổi lựa chọn do Google cung cấp.',()=>void action(async()=>{await AdsConsent.showPrivacyOptionsForm();resetAdsConsent();}))}
+   {adsSdkAvailable()&&row('Lựa chọn quyền riêng tư quảng cáo','Xem hoặc thay đổi lựa chọn do Google cung cấp.',()=>void action(async()=>{const{AdsConsent}=require('react-native-google-mobile-ads') as typeof import('react-native-google-mobile-ads');await AdsConsent.showPrivacyOptionsForm();resetAdsConsent();}))}
   </GlassSurface>
   {error&&<Text accessibilityRole="alert" style={{color:'#FFA8BA',fontSize:13,lineHeight:20}}>{error}</Text>}
   <ActionSheet title="Ngôn ngữ" visible={languageOpen} onClose={()=>setLanguageOpen(false)}><Text style={{fontSize:12,color:glassColors.muted,lineHeight:19}}>Có 21 lựa chọn. Nội dung dài của Cornish dùng tiếng Anh dự phòng. Bản dịch tự động có thể cần hiệu chỉnh.</Text>{LANGUAGES.map(([code,name,english])=><Pressable key={code} accessibilityRole="radio" accessibilityState={{checked:code===language}} onPress={()=>void action(async()=>{await setLanguage(code);setLanguageOpen(false);})} style={{minHeight:49,paddingVertical:10,flexDirection:'row',justifyContent:'space-between'}}><Text style={{fontSize:15}}>{name} · {english}</Text><Text>{code===language?'✓':''}</Text></Pressable>)}</ActionSheet>

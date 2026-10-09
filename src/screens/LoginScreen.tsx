@@ -24,6 +24,7 @@ import {
   sendPhoneCode,
   sendPasswordReset,
   handleAuthUrl,
+  signInWithMagicLink,emailLinkConfigured,isEmailSignInLink,
 } from '../services/auth';
 import GoogleFirebaseButton from '../components/GoogleFirebaseButton';
 import {LEGAL_SUMMARY,LEGAL_VERSION} from '../content/legal';
@@ -56,6 +57,7 @@ export default function LoginScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [pendingEmailLink,setPendingEmailLink]=useState<string|null>(null);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -70,7 +72,8 @@ export default function LoginScreen() {
   useEffect(() => {
     // Lắng nghe callback Firebase khi một provider dùng deep link.
     const handleDeepLink = async (url: string | null) => {
-      if (!url || !url.includes('auth/callback')) return;
+      if (!url || (!url.includes('auth/callback')&&!isEmailSignInLink(url))) return;
+      if(isEmailSignInLink(url)){setPendingEmailLink(url);setSuccessMsg('Nhập email đã nhận liên kết, rồi chọn xác nhận để đăng nhập.');return;}
       setLoading(true);
       setErrorMsg(null);
       const res = await handleAuthUrl(url);
@@ -584,6 +587,7 @@ export default function LoginScreen() {
           )}
 
           {/* Submit Action Button */}
+          {mode==='signin'&&emailLinkConfigured()&&<GlassButton disabled={loading} tone="neutral" onPress={()=>{if(loading)return;if(!acceptedTerms){setErrorMsg('Hãy đồng ý điều khoản trước khi tiếp tục.');return;}setLoading(true);setErrorMsg(null);void(async()=>{try{if(pendingEmailLink){const result=await handleAuthUrl(pendingEmailLink,email);handleProviderResult(result);if(!result.error)setPendingEmailLink(null);}else{const result=await signInWithMagicLink(email);if(result.success)setSuccessMsg('Đã gửi liên kết. Mở email trên thiết bị này hoặc nhập đúng email trên thiết bị khác.');else setErrorMsg(result.error||'Chưa gửi được liên kết.');}}finally{setLoading(false);}})();}}><Text>{pendingEmailLink?'Xác nhận liên kết với email':'Gửi liên kết đăng nhập qua email'}</Text></GlassButton>}
           <GlassButton
             style={s.submitBtn}
             tone={mode === 'signup' ? 'purple' : 'blue'}

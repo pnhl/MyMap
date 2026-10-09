@@ -11,11 +11,13 @@ final class OfflineSpeech {
   private var generation = 0
 
   static func available(_ language: String = "vi-VN") -> Bool {
+    guard Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil else { return false }
     guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: language)) else { return false }
     return recognizer.isAvailable && recognizer.supportsOnDeviceRecognition
   }
 
   func start(_ language: String, promise: Promise) {
+    guard Self.available(language) else { promise.reject("SPEECH_UNAVAILABLE", "Thiết bị chưa hỗ trợ nhận dạng ngoại tuyến hoặc thiếu cấu hình quyền."); return }
     guard self.promise == nil else { promise.reject("SPEECH_BUSY", "Đang nhận dạng giọng nói."); return }
     self.promise = promise; generation += 1
     let token = generation

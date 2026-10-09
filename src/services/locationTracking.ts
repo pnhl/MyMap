@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import {travelNative} from './travelPlatform';
+import {setJourneyActivityTracking} from './journeyActivity';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Accelerometer } from 'expo-sensors';
@@ -233,6 +234,7 @@ export function startTracking(): Promise<TrackingStartResult> {
     const mode = await configureTracking(backgroundGranted);
     await AsyncStorage.setItem(TRACKING_ENABLED_KEY, 'true');
     travelNative?.setTrackingIndicator?.(true);
+    setJourneyActivityTracking(true);
     await AsyncStorage.removeItem(TRACKING_ERROR_KEY);
     let firstPointSaved = false;
     try {
@@ -261,6 +263,7 @@ export function restoreTracking(): Promise<void> {
       }
       const bg = await Location.getBackgroundPermissionsAsync().catch(() => ({ status: 'denied' }));
       await configureTracking(bg.status === 'granted');
+      setJourneyActivityTracking(true);
       await AsyncStorage.setItem(TRACKING_ENABLED_KEY, 'true');
       await AsyncStorage.removeItem(TRACKING_ERROR_KEY);
     } catch (error) {
@@ -277,6 +280,7 @@ export function stopTracking(): Promise<void> {
   return serialize(async () => {
   await AsyncStorage.setItem(TRACKING_ENABLED_KEY, 'false');
   travelNative?.setTrackingIndicator?.(false);
+  setJourneyActivityTracking(false);
   await travelNative?.stopPlatformTracking?.();
   stopAdaptiveMotionListener();
   foregroundLocationSub?.remove();

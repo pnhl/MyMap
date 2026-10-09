@@ -1,4 +1,4 @@
-import { getDeviceCurrentPosition } from '../services/platformLocation';
+import { getDeviceCurrentPosition,isAmazonLocationDevice } from '../services/platformLocation';
 import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -32,6 +32,7 @@ import { APP_THEMES, useAppTheme } from '../ui/theme';
 import type { User } from '@supabase/supabase-js';
 import { version } from '../../package.json';
 import {SyncSettings} from '../components/SyncSettings';
+import {AccountLinkSettings} from '../components/AccountLinkSettings';
 
 export default function SettingsScreen() {
   const nav = useNavigation<any>();
@@ -218,6 +219,7 @@ export default function SettingsScreen() {
       <SyncSettings/>
       <MapFeatureSettings/>
       <ExtensionSettings/>
+      {user&&<AccountLinkSettings/>}
       <ActionButton title="Dự báo chất lượng không khí" icon="weather-hazy" onPress={()=>nav.navigate("Environment")}/>
       <ActionButton title="AI trên thiết bị" icon="robot-outline" onPress={()=>nav.navigate("DeviceAi")}/>
       <SettingRow icon="map-marker-path" title="Tuyến ngoại tuyến đã lưu" body="Xem lại tuyến đã tính khi mất mạng" onPress={()=>nav.navigate('OfflineRoutes')}/>
@@ -490,7 +492,7 @@ export default function SettingsScreen() {
             onPress={() =>
               void action(async () => {
                 await syncGeofences();
-                setStatus('Đã cập nhật vùng cảnh báo địa điểm.');
+                setStatus(await isAmazonLocationDevice()?'Đã cập nhật. Trên Fire, cảnh báo địa điểm theo GPS hoạt động khi MyMap đang mở; cần thiết bị có nguồn vị trí.':'Đã cập nhật vùng cảnh báo địa điểm.');
               })
             }
           />

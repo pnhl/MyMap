@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {useIsFocused} from '@react-navigation/native';
 import {prepareAds} from '../services/adsPrivacy';
-import { AppState, Image, StyleSheet, View } from 'react-native';
+import { AppState, Image, StyleSheet, View, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   NativeAd,
@@ -24,8 +24,8 @@ import {classifyAdFailure, getAdRequestPolicy, type AdLoadFailure} from '../serv
 type Placement = 'smart' | 'friends' | 'timeline' | 'stats' | 'profile' | 'memories' | 'heatmap' | 'settings' | 'place';
 type Props = { placement: Placement; compact?: boolean };
 
-const PROD_IDS: Record<Placement, string | undefined> = env.nativeAdUnitIds;
-const BANNER_IDS: Record<Placement, string | undefined> = env.bannerAdUnitIds;
+const PROD_IDS: Record<Placement, string | undefined> = Platform.OS==='ios'?env.iosNativeAdUnitIds:env.nativeAdUnitIds;
+const BANNER_IDS: Record<Placement, string | undefined> = Platform.OS==='ios'?env.iosBannerAdUnitIds:env.bannerAdUnitIds;
 
 
 export function NativeAdCard({ placement, compact = true }: Props) {

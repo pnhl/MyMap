@@ -5,10 +5,13 @@ import * as Crypto from 'expo-crypto';
 import {
   AppleAuthProvider,
   GoogleAuthProvider,
+  EmailAuthProvider,
+  linkWithCredential,
   createUserWithEmailAndPassword,
   isSignInWithEmailLink,
   onAuthStateChanged,
   sendEmailVerification,
+  sendSignInLinkToEmail,
   sendPasswordResetEmail,
   signInAnonymously as firebaseSignInAnonymously,
   signInWithCredential,
@@ -49,6 +52,10 @@ function authErrorMessage(error: unknown, fallback: string): string {
       return 'Email hoặc mật khẩu không đúng.';
     case 'auth/email-already-in-use':
       return 'Email này đã có tài khoản Firebase.';
+    case 'auth/credential-already-in-use':
+      return 'Email này thuộc tài khoản khác. Không thể tự động gộp dữ liệu; hãy dùng email khác hoặc đăng nhập tài khoản đó.';
+    case 'auth/requires-recent-login':
+      return 'Hãy đăng nhập lại bằng phương thức hiện tại rồi liên kết email để xác nhận danh tính.';
     case 'auth/weak-password':
       return 'Mật khẩu chưa đáp ứng chính sách bảo mật của Firebase.';
     case 'auth/user-disabled':
@@ -114,6 +121,22 @@ export async function signInWithEmail(email: string, password: string): Promise<
   } catch (error) {
     return { user: null, session: null, error: authErrorMessage(error, 'Không thể đăng nhập Firebase.') };
   }
+}
+
+// Add a portable login method to the current Apple/Google/guest UID. Never
+// create a second account or merge another owner's data on an email collision.
+export async function linkAccountEmail(email:string,password:string):Promise<AuthResult>{
+ const cleanEmail=email.trim().toLowerCase();
+ if(!cleanEmail.includes('@')||password.length<6)return{user:null,session:null,error:'Nhập email hợp lệ và mật khẩu ít nhất 6 ký tự.'};
+ try{
+  await waitForFirebaseAuth();const user=firebaseAuth.currentUser;
+  if(!user)return{user:null,session:null,error:'Hãy đăng nhập tài khoản muốn liên kết trước.'};
+  if(user.providerData.some(p=>p.providerId==='password'))return{user:null,session:null,error:'Tài khoản đã có phương thức email/mật khẩu. Dùng đặt lại mật khẩu ở màn hình đăng nhập nếu cần.'};
+  const result=await linkWithCredential(user,EmailAuthProvider.credential(cleanEmail,password));
+  if(result.user.uid!==user.uid)throw Error('Không thể xác nhận tài khoản liên kết.');
+  await sendEmailVerification(result.user).catch(()=>undefined);
+  return currentResult();
+ }catch(error){return{user:null,session:null,error:authErrorMessage(error,'Chưa liên kết được email.')};}
 }
 
 export async function signUpWithEmail(
@@ -249,12 +272,18 @@ export async function signInWithMagicLink(email: string): Promise<{ success: boo
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { success: false, error: 'Vui lòng nhập địa chỉ email hợp lệ.' };
   }
-  await AsyncStorage.setItem(EMAIL_LINK_KEY, cleanEmail);
-  return {
-    success: false,
-    error: 'Đăng nhập bằng liên kết cần Firebase Hosting/Universal Link. Hãy dùng mật khẩu trong bản build hiện tại.',
-  };
+  if(!emailLinkConfigured())return{success:false,error:'Chưa cấu hình Firebase Hosting cho liên kết đăng nhập. Bạn vẫn có thể dùng email và mật khẩu.'};
+  try{
+    await sendSignInLinkToEmail(firebaseAuth,cleanEmail,{url:process.env.EXPO_PUBLIC_EMAIL_LINK_CONTINUE_URL!,handleCodeInApp:true,linkDomain:process.env.EXPO_PUBLIC_EMAIL_LINK_DOMAIN!,iOS:{bundleId:'com.pnhl.vibecoding'},android:{packageName:'com.pnhl.vibecoding',installApp:false}});
+    await AsyncStorage.setItem(EMAIL_LINK_KEY,cleanEmail);return{success:true,error:null};
+  }catch(error){return{success:false,error:authErrorMessage(error,'Chưa gửi được liên kết đăng nhập.')};}
 }
+
+export function emailLinkConfigured(){
+ const domain=process.env.EXPO_PUBLIC_EMAIL_LINK_DOMAIN||'',continuation=process.env.EXPO_PUBLIC_EMAIL_LINK_CONTINUE_URL||'';
+ try{const url=new URL(continuation);return url.protocol==='https:'&&!url.username&&!url.password&&/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(domain)&&!['localhost','127.0.0.1'].includes(url.hostname);}catch{return false;}
+}
+export function isEmailSignInLink(url:string){return emailLinkConfigured()&&isSignInWithEmailLink(firebaseAuth,url);}
 
 export async function sendPasswordReset(email: string): Promise<{ success: boolean; error?: string | null }> {
   const cleanEmail = email.trim().toLowerCase();
@@ -294,14 +323,14 @@ export function parseAuthParams(url: string): Record<string, string> {
   return params;
 }
 
-export async function handleAuthUrl(url: string): Promise<AuthResult> {
+export async function handleAuthUrl(url: string, confirmationEmail?:string): Promise<AuthResult> {
   try {
     if (!isSignInWithEmailLink(firebaseAuth, url)) {
       const params = parseAuthParams(url);
       const error = params.error_description || params.error;
       return { user: null, session: null, error: error || 'Liên kết không phải callback Firebase hợp lệ.' };
     }
-    const email = await AsyncStorage.getItem(EMAIL_LINK_KEY);
+    const email = confirmationEmail?.trim().toLowerCase() || await AsyncStorage.getItem(EMAIL_LINK_KEY);
     if (!email) {
       return { user: null, session: null, error: 'Cần nhập lại email để xác nhận liên kết đăng nhập.' };
     }
@@ -315,6 +344,7 @@ export async function handleAuthUrl(url: string): Promise<AuthResult> {
 
 export async function signOutUser(): Promise<{ error?: string | null }> {
   try {
+    await import('./pushRegistration').then(m=>m.revokePushDelivery()).catch(()=>undefined);
     await signOut(firebaseAuth);
     return { error: null };
   } catch (error) {

@@ -41,6 +41,7 @@ function fixture(storage = new Map(), native = null, platform = false) {
     getLastKnownPositionAsync: async () => first,
   };
   const mocks = {
+    './journeyActivity': {setJourneyActivityTracking() {}},
     'react-native': { Platform: { OS: 'android' } }, 'expo-location': location,
     'expo-task-manager': { defineTask: (_, callback) => { task = callback; }, isTaskRegisteredAsync: async () => started },
     '@react-native-async-storage/async-storage': { getItem: async key => storage.get(key) ?? null, setItem: async (key, value) => storage.set(key, value), removeItem: async key => storage.delete(key) },
