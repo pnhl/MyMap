@@ -20,7 +20,8 @@
     "build:amazon": "node scripts/build-store.cjs amazon",
     "build:all": "node scripts/build-store.cjs all",
     "release:check": "node scripts/release-check.cjs",
-    "eas-build-post-install": "node scripts/eas-post-install.cjs"
+    "eas-build-post-install": "node scripts/eas-post-install.cjs",
+    "lint": "node scripts/lint-source.cjs"
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "15.0.2",
@@ -81,6 +82,7 @@
     "react-native-webview": "13.16.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.4",
     "@types/geojson": "7946.0.16",
     "@types/node": "^26.6.2",
     "@types/react": "~19.2.0",

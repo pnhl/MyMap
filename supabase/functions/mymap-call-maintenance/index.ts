@@ -1,5 +1,6 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.95.0';
 import {RoomServiceClient} from 'npm:livekit-server-sdk@2.19.1';
+import {createPushHandler} from '../mymap-push/handler.ts';
 // This endpoint accepts the project's existing anon API key, but has no caller-supplied
 // room/participant/action. It can only execute expired or revoked jobs selected by SQL.
 // A server-side lease prevents callers from increasing the cleanup rate.
@@ -14,9 +15,16 @@ Deno.serve(async(req:Request)=>{
  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(presented)))).map(b=>b.toString(16).padStart(2,'0')).join('');
  if(!presented||(!anon||presented!==anon)&&hash!==pinnedDigest)return reply(401);
  try{
+  const server=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
+  // Reuse the existing minute scheduler and server-side identity. The request
+  // cannot choose recipients; only leased jobs created by notification triggers run.
+  const push=await createPushHandler({authorize:()=>true,
+   claim:async()=>{const{data,error}=await server.rpc('mm_claim_push_jobs');if(error)throw Error('queue_unavailable');return data||[];},
+   finish:async(job,result,ticket)=>{const{error}=await server.rpc('mm_finish_push_job',{p_job:job.id,p_lease:job.lease,p_result:result,p_ticket:ticket||null});if(error)throw Error('queue_unavailable');},
+   fetch,accessToken:Deno.env.get('EXPO_ACCESS_TOKEN'),
+  })(req);
   const key=Deno.env.get('LIVEKIT_API_KEY'),secret=Deno.env.get('LIVEKIT_API_SECRET'),url=Deno.env.get('LIVEKIT_URL');
   if(!key||!secret||!url)return reply(503);
-  const server=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
   const {data,error}=await server.rpc('mm_call_cleanup_jobs');if(error)throw error;
   const rooms=new RoomServiceClient(url.replace(/^wss:/,'https:'),key,secret);
   for(const id of data||[]){
@@ -24,6 +32,6 @@ Deno.serve(async(req:Request)=>{
    try{await rooms.deleteRoom('mymap-call-'+id);}catch(e){if((e as {code?:string}).code!=='not_found')continue;}
    await server.rpc('mm_call_cleanup_done',{p_call:id});
   }
-  return reply(200);
+  return reply(push.ok?200:503);
  }catch{return reply(503);}
 });
