@@ -1,5 +1,5 @@
 """Fail closed on release provenance, manifest, permissions and embedded JS parity."""
-import argparse, hashlib, json, os, pathlib, plistlib, re, subprocess, tempfile, zipfile
+import argparse, hashlib, json, os, pathlib, plistlib, re, subprocess, tempfile, zipfile, sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RELEASE = json.loads((ROOT / 'release.json').read_text())
 ANDROID_NS = '{http://schemas.android.com/apk/res/android}'
@@ -38,10 +38,13 @@ def apk(path, store):
         require(not any('car.app' in p or 'aicore' in p.lower() or 'AD_ID' in p for p in permissions), 'Amazon Google-only permissions')
     else:
         require('com.google.android.gms.ads.APPLICATION_ID' in tree, 'Google release lacks AdMob application ID')
-    command([android_tool('apksigner'), 'verify', '--verbose', str(path)])
+    signature = command([android_tool('apksigner'), 'verify', '--verbose', '--print-certs', str(path)])
+    require('CN=Android Debug' not in signature, 'APK uses the Android debug signing certificate')
+    cert = re.search(r'Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]+)', signature)
+    require(cert, 'APK lacks a verifiable signer certificate')
     with zipfile.ZipFile(path) as archive:
         bundle = archive.read('assets/index.android.bundle')
-    return {'store':store, 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'jsSha256':hashlib.sha256(bundle).hexdigest(), 'permissions':sorted(permissions)}
+    return {'store':store, 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'jsSha256':hashlib.sha256(bundle).hexdigest(), 'signerSha256':cert.group(1).lower(), 'permissions':sorted(permissions)}
 
 def ipa(path, unsigned=False):
     with zipfile.ZipFile(path) as archive:
@@ -62,7 +65,38 @@ def ipa(path, unsigned=False):
         require(re.fullmatch(r'ca-app-pub-\d{16}~\d{10}',info.get('GADApplicationIdentifier','')) and '3940256099942544' not in info['GADApplicationIdentifier'], 'iOS release must use real AdMob application ID')
         require(unsigned or any(n.endswith('/embedded.mobileprovision') for n in names), 'Signed IPA lacks provisioning profile')
         require(not any(b'localhost:8081' in archive.read(n) or b'localhost:9999' in archive.read(n) or b'10.0.2.2' in archive.read(n) for n in names if n.endswith('.jsbundle')), 'Development endpoint in iOS JS bundle')
-    return {'store':'ios', 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'unsigned':unsigned}
+    signature_verified=False
+    if not unsigned and sys.platform=='darwin':
+        with tempfile.TemporaryDirectory(prefix='mymap-ipa-') as temporary:
+            root=pathlib.Path(temporary)
+            with zipfile.ZipFile(path) as archive:
+                require(all((root/n).resolve().is_relative_to(root.resolve()) for n in archive.namelist()), 'Unsafe IPA archive path')
+                archive.extractall(root)
+                for member in archive.infolist():
+                    target=root/member.filename
+                    if target.is_file():target.chmod((member.external_attr>>16)&0o777 or 0o644)
+            app=root/pathlib.PurePosixPath(main).parent
+            command(['codesign','--verify','--deep','--strict',str(app)])
+            profile=subprocess.check_output(['security','cms','-D','-i',str(app/'embedded.mobileprovision')],stderr=subprocess.DEVNULL)
+            decoded_profile=plistlib.loads(profile);entitlements=decoded_profile.get('Entitlements',{})
+            require(not entitlements.get('get-task-allow',False), 'iOS distribution uses a development provisioning profile')
+            require(not decoded_profile.get('ProvisionedDevices') and not decoded_profile.get('ProvisionsAllDevices'), 'iOS store artifact requires an App Store distribution profile')
+            require(entitlements.get('application-identifier','').endswith('.'+RELEASE['applicationId']), 'iOS profile belongs to a different application')
+            signature_verified=True
+    return {'store':'ios', 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'unsigned':unsigned, 'signatureVerified':signature_verified}
+
+def wear_apk(path):
+    badging=command([android_tool('aapt2'),'dump','badging',str(path)])
+    match=re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",badging)
+    require(match and match.groups()==(RELEASE['applicationId'],str(RELEASE['build']),RELEASE['version']),'Wear version/package mismatch')
+    permissions=set(re.findall(r"uses-permission(?:-sdk-\d+)?: name='([^']+)'",badging))
+    require(permissions=={'android.permission.VIBRATE'},'Unexpected Wear permissions')
+    tree=command([android_tool('aapt2'),'dump','xmltree',str(path),'--file','AndroidManifest.xml'])
+    require('application-debuggable' not in badging and re.search(r'android:allowBackup.*(?:0x0\b|false)',tree),'Unsafe Wear release flags')
+    signature=command([android_tool('apksigner'),'verify','--verbose','--print-certs',str(path)])
+    require('CN=Android Debug' not in signature,'Wear uses a debug signing certificate')
+    cert=re.search(r'Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]+)',signature);require(cert,'Missing Wear signer')
+    return {'store':'wear','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'signerSha256':cert.group(1).lower()}
 
 def aab(path):
     import xml.etree.ElementTree as ET
@@ -76,20 +110,23 @@ def aab(path):
     policy = json.loads((ROOT / 'config/android-permissions.json').read_text()); allowed=set(policy['common'])|set(policy['play'])|{RELEASE['applicationId']+'.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
     require(not permissions-allowed, 'Unexpected AAB permissions: '+str(permissions-allowed))
     require('3940256099942544~' not in xml, 'Test ads in AAB')
-    command(['jarsigner','-verify',str(path)])
+    signing = command(['jarsigner','-verify',str(path)])
+    require('jar verified.' in signing and 'jar is unsigned' not in signing.lower(), 'AAB is unsigned or its JAR signature is invalid')
     with zipfile.ZipFile(path) as archive: bundle=archive.read('base/assets/index.android.bundle')
     return {'store':'play-aab','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'jsSha256':hashlib.sha256(bundle).hexdigest()}
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--ios',type=pathlib.Path);p.add_argument('--play',type=pathlib.Path);p.add_argument('--amazon',type=pathlib.Path);p.add_argument('--aab',type=pathlib.Path);p.add_argument('--unsigned',action='store_true');p.add_argument('--commit');p.add_argument('--complete',action='store_true');args=p.parse_args()
-    require(any([args.ios,args.play,args.amazon,args.aab]), 'Provide at least one artifact')
+    p=argparse.ArgumentParser();p.add_argument('--ios',type=pathlib.Path);p.add_argument('--play',type=pathlib.Path);p.add_argument('--amazon',type=pathlib.Path);p.add_argument('--wear',type=pathlib.Path);p.add_argument('--aab',type=pathlib.Path);p.add_argument('--unsigned',action='store_true');p.add_argument('--commit');p.add_argument('--complete',action='store_true');args=p.parse_args()
+    require(any([args.ios,args.play,args.amazon,args.aab,args.wear]), 'Provide at least one artifact')
     if args.complete: require(args.ios and args.play and args.amazon and args.aab and args.commit, 'Complete release requires all signed artifacts and source commit')
     result=[]
     if args.ios: result.append(ipa(args.ios,args.unsigned))
     if args.play: result.append(apk(args.play,'play'))
     if args.amazon: result.append(apk(args.amazon,'amazon'))
     if args.aab: result.append(aab(args.aab))
+    if args.wear: result.append(wear_apk(args.wear))
     hashes={r['jsSha256'] for r in result if 'jsSha256' in r};require(len(hashes)<=1,'Android/Amazon/AAB embedded JS bundles differ')
+    signers={r['signerSha256'] for r in result if 'signerSha256' in r};require(len(signers)<=1,'Android and Amazon use different release signing certificates')
     output={'version':RELEASE['version'],'build':RELEASE['build'],'commit':args.commit,'artifacts':result}
     print(json.dumps(output,indent=2));(ROOT/'dist/releases').mkdir(parents=True,exist_ok=True);(ROOT/'dist/releases/verification.json').write_text(json.dumps(output,indent=2))
 if __name__=='__main__':

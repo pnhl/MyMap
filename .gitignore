@@ -29,3 +29,6 @@ credentials.json
 api_key.txt
 .eas-builds/
 release-provenance.json
+__pycache__/
+**/.gradle/
+*.pyc
