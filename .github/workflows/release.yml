@@ -30,7 +30,9 @@ jobs:
           MYMAP_STORE: play
           MYMAP_RELEASE: 'false'
           EAS_BUILD: 'true'
-        run: npx expo prebuild --platform android --no-install
+        run: |
+          node scripts/prepare-native-test-config.cjs
+          npx expo prebuild --platform android --no-install
       - run: npm test
       - run: python3 -m unittest discover -s tests -p '*_test.py'
   android:
