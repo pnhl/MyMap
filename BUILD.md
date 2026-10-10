@@ -1,5 +1,7 @@
 # Build MyMap cho iOS, Google Play và Amazon
 
+Hướng dẫn hiện hành và năm artifact: [docs/BUILD.md](docs/BUILD.md). Trạng thái kiểm chứng/blocker: [docs/PARITY_PROGRESS.md](docs/PARITY_PROGRESS.md). Các hướng dẫn ký cũ bên dưới được giữ để đối chiếu; local signing nay tách `.signing/play/` và `.signing/amazon/`.
+
 Nguồn chung là repo này. `release.json` giữ version 1.0.4, build 38 và application ID; các bản đều dùng cùng Git commit. `android/`, `ios/` là mã sinh từ Expo CNG, không chỉnh trực tiếp. Không dùng lại native project sinh cho Play để build Amazon.
 
 ## Chuẩn bị

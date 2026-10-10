@@ -5,24 +5,26 @@ Quy ước: DONE-VERIFIED có bằng chứng tự động trong phạm vi ghi r�
 | Cụm | Trạng thái | Bằng chứng / còn lại |
 |---|---|---|
 | L1 kiểm nguồn gộp | DONE-VERIFIED | Git chứa module my-map-ios, Swift speech/AI, widgets, Watch, Android plugins/native, Wear. Phase 0 là ảnh chụp trước khi gộp. |
-| L1 pipeline 5 artifact | DONE-UNVERIFIED | Có năm profile, release-set assembler và fingerprint embedded/sidecar; 2 test inputs/assembler đạt. Native lock chưa resolve/duyệt, production dừng rõ. Chưa có bộ 5 artifact. |
-| L2 artifact gates | DONE-UNVERIFIED | Bổ sung DEX class definitions/methods, ELF64 + zipalign 16KB, backup rules contents, embedded provenance, năm artifact, từng target iOS. 9 test Python đạt; chưa chạy bộ artifact thật. |
+| L1 pipeline 5 artifact | DONE-UNVERIFIED | Có năm profile, release-set assembler và fingerprint embedded/sidecar; tests inputs/assembler đạt. Android locks đã resolve; Pod lock còn BLOCKED. Chưa có bộ 5 artifact. |
+| L2 artifact gates | DONE-UNVERIFIED | 10 test Python đạt; DEX startup methods có code, ELF64 và ZIP 16KB đạt trên Fire unsigned fixture sau R8. Chưa có năm artifact ký cùng commit. |
 | L3 chín finding | DONE-UNVERIFIED | Xem PARITY_NOTES.md; không dùng APK build 36 làm bằng chứng build mới. |
 | L4 hợp đồng và chức năng | DONE-UNVERIFIED | Kiểm theo ma trận phase 0; ADM cần SDK/credentials, các luồng native cần thiết bị. |
 | L5 kiểm thử/tài liệu | DONE-UNVERIFIED | Cập nhật kết quả sau từng cụm; QA máy thật chưa chạy. |
 | Ký/5 artifact production | BLOCKED | Cần macOS/Xcode, cấu hình EAS và signing được chủ dự án sử dụng trong phiên riêng. Lượt này cấm dùng credential thật. |
 | Push production | BLOCKED | Cần ADM/FCM/APNs credentials, entitlement, triển khai backend và hai thiết bị kiểm nhận. |
 | CarPlay | BLOCKED | MYMAP_ENABLE_CARPLAY=false cho đến khi có entitlement/provisioning. |
-| Native locks | DONE-UNVERIFIED / BLOCKED iOS | Gradle app locks/checksums đã resolve từ compile/fixtures từng store; còn strict full-release/host khác. Podfile.lock cần macOS. |
+| Native locks | DONE-UNVERIFIED / BLOCKED iOS | Gradle app/Wear locks/checksums đã resolve; strict compile hai store/Wear và Fire unsigned R8 đạt Windows. Google full release/host khác còn chờ; Podfile.lock cần macOS. |
 | Secret lịch sử | BLOCKED | Scanner đọc 666 blobs: 5 phiên bản cũ của .github/workflows/build-firebase-xctest-ios.yml có chuỗi Firebase API key. Source hiện tại sạch. Chủ dự án cần xác minh/restrict/rotate nếu là key thật; không tự rewrite Git history. |
 
 Checkpoint đầu: HEAD trước thay đổi `19bc57de585a8e452ca8f590c19fd0817ebabc55`, source sạch. Các test cũ không được tự động coi là nghiệm thu yêu cầu mới.
 
 ## Bằng chứng cập nhật
 
-- Lint/typecheck đạt; 341 Node tests đạt, gồm linking UID/races, push registry/ADM/lease trên Postgres PGlite, snapshots/reducer, ad config và release manifest. Hai test Fire geofence bổ sung đạt riêng, chờ tổng kiểm cuối. 9 Python gate tests đạt. Test fixture không phải signed artifact.
+- Lint/typecheck đạt; **345 Node tests và 10 Python gate tests đạt**, gồm linking UID/races, push registry/ADM/lease trên Postgres PGlite, warm push taps, snapshots/reducer, Fire geofence ownership, EAS per-store staging, ad config, release manifest, DEX defined methods và ELF alignment. Test fixture không phải signed artifact.
 - Google/Fire native Kotlin gồm geofence recorder và native no-GMS boundary tests đã chạy trong source fixtures Firebase giả: mỗi store 2 JVM tests, không failures. Strict dependency verification compile đạt cả hai. Merged manifests: Fire 24 và Google 32 uses-permissions, allowBackup=false và đủ backup rules; Fire không còn GMA/FCM initializer. Compile không cần .env/keystore.
-- Hai bundle **Hermes bytecode** sinh từ native fixture có cùng SHA-256 `6a02b5609ea5b36696ced19c7e43a2fb6491cba18fcc5a81e445b9aa059311a7`, magic `c61fbc03c103191f`. Đây là bundle output trước đóng gói/sign, chưa phải chứng cứ hash của hai APK cuối. Fixture lấy source đang làm việc; commit cuối vẫn phải rebuild.
+- Fire đã build APK **Release unsigned** với Firebase giả, R8/resource shrink và strict verification, arm64-v8a. APK SHA-256 `9f6a3902fd2d1100abd172b077e48c5008fdc7227965996dc89e926a4171411d`; DEX startup method definitions có code, mọi ELF64 PT_LOAD đạt 16 KB, zipalign -P16 đạt. Scanner đọc 1556 files, 7 framework constants, 21 Spotube loopback matches, không phát hiện executable dev route. Gate production từ chối APK vì chưa ký, đúng thiết kế. Không dùng APK này phát hành.
+- Bundle **Hermes bytecode trích từ Fire APK fixture** và bundle output Google có cùng SHA-256 `f7837f889cb10ef16156596ca9e79049ff61118de9bc3b91fe692eae74982070`, magic `c61fbc03c103191f`. Chưa phải chứng cứ hash của hai APK ký cuối. Fixture lấy source đang làm việc; commit cuối vẫn phải rebuild.
+- Wear compileReleaseKotlin với locks/checksums strict đạt, không ký; chưa nghiệm thu Data Layer trên đồng hồ. Windows CXX dùng staging path ngắn; JVM Gradle 4 GB để R8 tránh GC thrash. R8 hiện báo stack-map warnings từ Amazon SDK/Google Auth; cần QA và xem lại khi nâng R8.
 - Source secret scan đạt; lịch sử vẫn có 5 blobs chưa xác minh như ghi trên. Không in secret, không rewrite history.
 - Chưa có iOS Swift/Xcode compile, iPhone/Fire cold start, ADM SDK compile, real push hoặc năm artifact cùng commit. Không nâng toàn tính năng lên VERIFIED từ unit test.
 
@@ -82,11 +84,11 @@ Mã trạng thái: **V = DONE-VERIFIED** chỉ trong phạm vi test nêu ở c�
 | 1 | AdMob test/wrong platform | DONE-VERIFIED config; DONE-UNVERIFIED release | Real IDs đã cung cấp, sample/wrong unit tests chặn; chưa IPA/APK cuối |
 | 2 | Widget debug dylib | DONE-UNVERIFIED | Root cause expo-widgets Release -Onone đã sửa bằng build settings; recursive gate/tests; cần Xcode artifact |
 | 3 | allowBackup | DONE-VERIFIED merged manifest; DONE-UNVERIFIED artifact | false + cloud/device-transfer five-domain excludes; cần APK/AAB guard thật |
-| 4 | Android permissions | DONE-VERIFIED merged Fire; DONE-UNVERIFIED full release | Badge/storage/overlay/activity loại, Bluetooth cho WebRTC; whitelist Nano sửa theo manifest; ADM quyền conditional |
+| 4 | Android permissions | DONE-VERIFIED merged hai store; DONE-UNVERIFIED full release | Badge/storage/overlay/activity loại, Bluetooth cho WebRTC; whitelist Nano sửa theo manifest; ADM quyền conditional |
 | 5 | Ba mô tả vị trí | DONE-VERIFIED config; DONE-UNVERIFIED IPA | Vietnamese final plugin + negative plist tests |
 | 6 | Background modes/fetch | DONE-VERIFIED config; DONE-UNVERIFIED IPA | Final modifier sau plugins giữ location/audio/processing/remote-notification, loại fetch; behavior review notes |
 | 7 | Firebase plist flags | DONE-VERIFIED policy; DONE-UNVERIFIED injected project | Giữ analytics/ads false; GMA/consent độc lập; không đọc/đổi credential thật |
-| 8 | Dev strings | DONE-VERIFIED scanner tests; DONE-UNVERIFIED artifacts | JS/resources/native classification, Spotube loopback giữ; không decompile Hermes để chứng minh reachability hoàn toàn |
+| 8 | Dev strings | DONE-VERIFIED tests/Fire unsigned fixture; DONE-UNVERIFIED release set | JS/resources/native classification, Spotube loopback giữ; không decompile Hermes để chứng minh reachability hoàn toàn |
 | 9 | Fire thiếu GMS | DONE-VERIFIED boundary/manifest; DONE-UNVERIFIED device | Native ClassLoader tests và Kotlin compile; cần cold start/paths trên Fire thật |
 
 ## Việc chủ dự án cần thực hiện

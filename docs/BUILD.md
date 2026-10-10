@@ -4,7 +4,7 @@ Nguồn version: `release.json`, hiện 1.0.4/build 38. `node scripts/bump-relea
 
 ## Trạng thái
 
-Pipeline và gates đã có code; **chưa có release set năm artifact của commit mới**. Native locks chưa resolve/duyệt đầy đủ; production cố ý dừng khi thiếu. Không dùng credential thật, triển khai backend hay upload store trong lượt này.
+Pipeline và gates đã có code; **chưa có release set năm artifact của commit mới**. Gradle locks/checksums từng store/Wear đã resolve và compile strict trên fixture Windows; Fire unsigned Release R8/16KB đạt. Google full release/host Linux cần kiểm tiếp. Podfile.lock còn thiếu, production iOS cố ý dừng. Không dùng credential thật, triển khai backend hay upload store trong lượt này.
 
 ## Toolchain và inputs
 
@@ -27,6 +27,8 @@ Node 24.14.0, npm lockfile; JDK 21; Expo 57/RN 0.86.3/Hermes/New Architecture; G
 
 Tạo keystore mới bằng keytool ở máy quản trị, password nhập tương tác; kiểm fingerprint certificate và lưu bản sao trong secret manager. Không ghi password trên command line. Local signing nằm `.signing/play/release.properties` hoặc `.signing/amazon/release.properties`; Gradle configure/compile không yêu cầu file, chỉ tác vụ assemble/bundle/sign release mới đọc. Artifact unsigned/debug signer không qua release gate.
 
+EAS Android dùng credentialsSource=local, tách `.signing/play/eas-credentials.json` và `.signing/amazon/eas-credentials.json`. Mỗi JSON theo schema EAS `android.keystore` chứa keystorePath, keystorePassword, keyAlias, keyPassword; đường dẫn trỏ keystore private của đúng store. Các lệnh npm build ở dưới staging file đã chọn thành credentials.json trong lúc gọi EAS rồi xóa trong finally; từ chối ghi đè credentials.json có sẵn. Gọi eas trực tiếp cần tự staging an toàn tương đương. CI bắt buộc secrets đúng store, không ngầm dùng khóa Google khi thiếu khóa Amazon. Không tạo/read credential thật trong lượt này.
+
 Cloudflare Secrets Store đã được cấu hình trước đây; xem CLOUDFLARE_SECRETS.md. Chưa có bridge tự động từ Secrets Store sang GitHub/EAS. Không tạo API trả plaintext secret cho app. EXPO_PUBLIC vẫn là dữ liệu nhúng client dù nguồn cấp nằm trong secret manager.
 
 ## Lệnh build và bàn giao
@@ -40,9 +42,9 @@ npm run build:amazon     # android-amazon APK
 npm run build:all        # đủ năm artifact, provenance, SHA, release-set.json
 ```
 
-Unsigned profile dùng custom EAS workflow không cần signing, tạo Release app/extensions/Watch với CODE_SIGNING_ALLOWED=NO. Không chạy unsigned trong cùng profile ký rồi giả đổi tên. [EAS custom build schema](https://docs.expo.dev/custom-builds/schema/).
+Unsigned profile dùng custom EAS workflow không cần signing, tạo Release app/extensions/Watch với CODE_SIGNING_ALLOWED=NO. Không chạy unsigned trong cùng profile ký rồi giả đổi tên. Trên Windows signed IPA gate cần proof từ macOS gắn đúng hash; chạy build:all trên macOS hoặc dùng CI cho bộ đầy đủ. [EAS custom build schema](https://docs.expo.dev/custom-builds/schema/).
 
-CI checks dùng Firebase giả, lint/types/Node/Python. Workflow dispatch build_release=true chạy Android matrix, signed EAS IPA và unsigned macOS IPA; parity yêu cầu cả năm. Chưa dispatch production trong lượt này. Gate thực thi DEX class definitions + init methods, ELF64/ZIP16KB, whitelist/rules, versions, JS parity, per-target iOS signatures/profiles/appgroups (macOS), dev-string classification. [Android page sizes](https://developer.android.com/guide/practices/page-sizes).
+CI checks dùng Firebase giả, lint/types/Node/Python. Native fixture matrix Google/Fire compile Kotlin, kiểm merged manifest và JVM no-GMS boundary tests không cần ký. Workflow dispatch build_release=true chạy Android matrix, signed EAS IPA và unsigned macOS IPA; parity yêu cầu cả năm. Chưa dispatch production trong lượt này. Gate thực thi DEX class definitions + init methods, ELF64/ZIP16KB, whitelist/rules, Hermes bytecode, versions, JS parity, per-target iOS signatures/profiles/appgroups (macOS), dev-string classification JS/resources/native. Job macOS xuất `.signature-verification.json` gắn SHA IPA/commit/targets; Linux complete gate bắt buộc proof này. [Android page sizes](https://developer.android.com/guide/practices/page-sizes).
 
 ## Push và review notes
 

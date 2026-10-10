@@ -1,5 +1,7 @@
 # Bàn giao triển khai ba cửa hàng — 10/10/2026
 
+> **Tài liệu lịch sử của lượt trước.** Quyết định mới và trạng thái hiện hành nằm ở [PARITY_PROGRESS.md](PARITY_PROGRESS.md), [PARITY_NOTES.md](PARITY_NOTES.md), [BUILD.md](BUILD.md), [EXCEPTIONS.md](EXCEPTIONS.md). Đặc biệt: Fire ads hiện tắt, ADM có client/backend nhưng chờ hạ tầng, iOS modes có remote-notification. Các số test/build/backend bên dưới không chứng minh commit mới.
+
 Đã chuyển về một cây nguồn, release 1.0.4/build 38. Báo cáo phase 0 giữ nguyên để so sánh trước/sau. Đây là trạng thái **mã nguồn và kiểm tra**, chưa phải chứng nhận đã chạy đủ ba bản trên thiết bị thật. Những khác biệt dưới đây được giải thích, nhưng ngoại lệ chưa có xác nhận riêng của chủ dự án vẫn ở trạng thái chờ duyệt.
 
 ## Ma trận sau triển khai

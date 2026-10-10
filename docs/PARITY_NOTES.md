@@ -52,3 +52,9 @@ Recap request schema chung qua AVFoundation/Media3, owner check trước/sau exp
 ## Native locking và giới hạn chứng minh
 
 Đã resolve Gradle locks/checksums trên fixture Firebase giả, không .env/.signing. Compile/test Google/Fire không cần keystore. Lượt strict verification đầu phát hiện thiếu checksum AAPT2 từ detached configuration (dependency report không resolve đủ tool runtime); đã bổ sung bằng compile thật, không tắt verification để phát hành. Cần kiểm lại strict, host Linux/macOS tools và toàn release/R8/ABI trước khi gọi lock hoàn tất. Podfile.lock vẫn BLOCKED trên Windows. Không tạo five-artifact release set giả để vượt gate.
+
+Checkpoint cuối Windows: strict compile Google/Fire và Wear đạt; Fire arm64 unsigned Release sau R8/resource shrink đạt, DEX init method definitions/code, ELF PT_LOAD 16 KB và zipalign -P16 đạt. Gate ký production từ chối fixture unsigned đúng thiết kế. Fire APK Hermes và Google bundle output cùng hash được ghi trong PARITY_PROGRESS; chưa có hai signed APK cùng commit cuối. Pinned AAPT2 classifier checksums lấy từ Google Maven, origins/hashes được lưu, không tự accept checksum trong production.
+
+Windows Ninja vượt MAX_PATH khi CXX staging nằm sâu trong workspace; plugin chuyển staging vào java.io.tmpdir với path hash và CMAKE_OBJECT_PATH_MAX=240. Gradle heap 4 GB/metaspace 1 GB khắc phục R8 GC thrash; Kotlin daemon 1 GB. R8 build hiện qua nhưng có stack-map warnings trong Amazon Appstore SDK 3.0.9 và Google Auth 21.5.0; cần smoke test và kiểm lại khi nâng R8.
+
+EAS Android dùng JSON ký private riêng từng store, staging credentials.json tạm thời và dọn sau build; từ chối overwrite file sẵn có. CI không fallback khóa Google khi thiếu Amazon secret. Warm push taps nay có native event khi app đang active; token rotation vô hiệu lease/ticket cũ để phản hồi invalid-token cũ không xóa token mới. Có tests hồi quy; provider delivery thật vẫn BLOCKED.
