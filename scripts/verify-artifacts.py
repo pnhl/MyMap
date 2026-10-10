@@ -1,7 +1,7 @@
 """Fail closed on release provenance, manifest, permissions and embedded JS parity."""
 import argparse, hashlib, json, os, pathlib, plistlib, re, subprocess, tempfile, zipfile, sys
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent))
-from artifact_checks import dex_startup, native_libraries, classify_dev_strings, embedded_inputs
+from artifact_checks import dex_startup, native_libraries, classify_dev_strings, embedded_inputs, archive_dev_strings
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RELEASE = json.loads((ROOT / 'release.json').read_text())
 ANDROID_NS = '{http://schemas.android.com/apk/res/android}'
@@ -24,7 +24,7 @@ def android_tool(name):
     if os.environ.get(name.upper()): return os.environ[name.upper()]
     sdk = os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT')
     if not sdk and os.name == 'nt': sdk = str(pathlib.Path(os.environ['LOCALAPPDATA']) / 'Android/Sdk')
-    candidates = sorted(pathlib.Path(sdk or '/missing').glob('build-tools/*/' + name + ('.exe' if os.name == 'nt' and name == 'aapt2' else '.bat' if os.name == 'nt' else '')), reverse=True)
+    candidates = sorted(pathlib.Path(sdk or '/missing').glob('build-tools/*/' + name + ('.exe' if os.name == 'nt' and name in ('aapt2','zipalign') else '.bat' if os.name == 'nt' else '')), reverse=True)
     require(candidates, 'Set ANDROID_HOME or ' + name.upper())
     return str(candidates[0])
 
@@ -40,10 +40,13 @@ def apk(path, store, commit=None):
     permissions = set(re.findall(r"uses-permission(?:-sdk-\d+)?: name='([^']+)'", badging))
     policy = json.loads((ROOT / 'config/android-permissions.json').read_text())
     allowed = set(policy['common']) | set(policy[store]) | {RELEASE['applicationId'] + '.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
+    with zipfile.ZipFile(path) as archive:
+        inputs=embedded_inputs(archive.read('assets/mymap-release-inputs.json'),RELEASE,commit)
+    if store=='amazon' and inputs['flags'].get('adm'):allowed|=set(policy['adm'])
     require(not permissions - allowed, 'Unexpected permissions: ' + ', '.join(sorted(permissions - allowed)))
     require('3940256099942544~' not in tree, 'Google sample AdMob app ID in release')
     if store == 'amazon':
-        for component in ['RNGoogleSignin', 'GoogleMobileAdsInitProvider', 'MobileAdsInitProvider', 'ExpoFirebaseMessagingService', 'FirebaseMessagingService', 'FirebaseInstanceIdReceiver', 'MyMapCarService']:
+        for component in ['RNGoogleSignin', 'GoogleMobileAdsInitProvider', 'MobileAdsInitProvider', 'ExpoFirebaseMessagingService', 'FirebaseMessagingService', 'FirebaseInstanceIdReceiver', 'FirebaseMessagingRegistrar', 'FirebaseMessagingKtxRegistrar', 'MyMapCarService']:
             require(component not in tree, 'Amazon contains Google-only component: ' + component)
         require(not any('car.app' in p or 'aicore' in p.lower() or 'AD_ID' in p for p in permissions), 'Amazon Google-only permissions')
     if store=='play':require('com.google.android.gms.ads.APPLICATION_ID' in tree, 'Android release lacks AdMob application ID')
@@ -53,8 +56,9 @@ def apk(path, store, commit=None):
     require(cert, 'APK lacks a verifiable signer certificate')
     with zipfile.ZipFile(path) as archive:
         bundle = archive.read('assets/index.android.bundle')
+        require(bundle.startswith(bytes.fromhex('c61fbc03c103191f')),'Android release lacks Hermes bytecode')
         inputs=embedded_inputs(archive.read('assets/mymap-release-inputs.json'),RELEASE,commit)
-        dex=dex_startup(archive);abis=native_libraries(archive);dev=classify_dev_strings(bundle)
+        dex=dex_startup(archive);abis=native_libraries(archive);dev=archive_dev_strings(archive)
         for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:
             filename=next((n for n in archive.namelist() if re.fullmatch(r'res/xml/'+rule+r'\.xml',n)),None)
             require(filename,'Missing packaged backup rule: '+rule)
@@ -83,7 +87,9 @@ def ipa(path, unsigned=False, commit=None):
         require(re.fullmatch(r'ca-app-pub-\d{16}~\d{10}',info.get('GADApplicationIdentifier','')) and '3940256099942544' not in info['GADApplicationIdentifier'], 'iOS release must use real AdMob application ID')
         require(unsigned or any(n.endswith('/embedded.mobileprovision') for n in names), 'Signed IPA lacks provisioning profile')
         inputs=embedded_inputs(json.dumps(info.get('MyMapReleaseInputs',{})),RELEASE,commit)
-        dev=[classify_dev_strings(archive.read(n)) for n in names if n.endswith('.jsbundle')]
+        if inputs['flags'].get('watch'):require(any('/Watch/' in n and n.endswith('.app/Info.plist') for n in plists),'Watch target missing from IPA')
+        if inputs['flags'].get('widgets'):require(any('/PlugIns/' in n and n.endswith('.appex/Info.plist') for n in plists),'Widget target missing from IPA')
+        dev=archive_dev_strings(archive)
     verify_provenance(path,inputs,commit)
     signature_verified=False
     if not unsigned and sys.platform=='darwin':
@@ -112,6 +118,14 @@ def ipa(path, unsigned=False, commit=None):
                 require(set(signed.get('com.apple.security.application-groups',[]))<=set(entitlements.get('com.apple.security.application-groups',[])),'App group missing from provisioning')
                 if target.suffix=='.appex':require('group.com.pnhl.vibecoding' in signed.get('com.apple.security.application-groups',[]),'Widget lacks shared app group')
             signature_verified=True
+        pathlib.Path(str(path)+'.signature-verification.json').write_text(json.dumps({'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'commit':inputs['commit'],'signatureVerified':True,'targets':plists}))
+    elif not unsigned:
+        proof=pathlib.Path(str(path)+'.signature-verification.json')
+        if proof.exists():
+            value=json.loads(proof.read_text())
+            require(value.get('sha256')==hashlib.sha256(path.read_bytes()).hexdigest() and value.get('commit')==inputs['commit'] and value.get('targets')==plists and value.get('signatureVerified') is True,'Invalid macOS signature verification proof')
+            signature_verified=True
+    if commit and not unsigned:require(signature_verified,'Signed IPA needs macOS signing verification or its matching proof')
     return {'store':'ios-unsigned' if unsigned else 'ios', 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'unsigned':unsigned, 'signatureVerified':signature_verified,'inputs':inputs,'devStrings':dev}
 
 def wear_apk(path):
@@ -145,8 +159,11 @@ def aab(path, commit=None):
     require('PAGE_ALIGNMENT_16K' in bundle_config,'AAB does not request 16 KB page alignment')
     with zipfile.ZipFile(path) as archive:
         bundle=archive.read('base/assets/index.android.bundle')
+        require(bundle.startswith(bytes.fromhex('c61fbc03c103191f')),'AAB release lacks Hermes bytecode')
+        for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:
+            require('base/res/xml/'+rule+'.xml' in archive.namelist(),'AAB missing backup rules: '+rule)
         inputs=embedded_inputs(archive.read('base/assets/mymap-release-inputs.json'),RELEASE,commit)
-        dex=dex_startup(archive,'base/dex/');abis=native_libraries(archive,'base/lib/');dev=classify_dev_strings(bundle)
+        dex=dex_startup(archive,'base/dex/');abis=native_libraries(archive,'base/lib/');dev=archive_dev_strings(archive)
     verify_provenance(path,inputs,commit)
     return {'store':'play-aab','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'jsSha256':hashlib.sha256(bundle).hexdigest(),'inputs':inputs,'startup':dex,'abis':abis,'devStrings':dev}
 
@@ -161,6 +178,7 @@ def main():
     if args.amazon: result.append(apk(args.amazon,'amazon',args.commit))
     if args.aab: result.append(aab(args.aab,args.commit))
     if args.wear: result.append(wear_apk(args.wear))
+    if args.complete:require(next(r for r in result if r['store']=='ios')['signatureVerified'],'Complete release needs macOS per-target signing verification proof')
     hashes={r['jsSha256'] for r in result if 'jsSha256' in r};require(len(hashes)<=1,'Android/Amazon/AAB embedded JS bundles differ')
     # Google phone and Wear must match for Data Layer. Amazon may use its own signing identity.
     signers={r['signerSha256'] for r in result if r['store'] in ('play','wear')};require(len(signers)<=1,'Google phone and Wear signing certificates differ')

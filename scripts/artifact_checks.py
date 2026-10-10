@@ -1,5 +1,5 @@
 """Binary checks independent of signing tools. Never print bundle contents."""
-import hashlib, json, re, struct
+import hashlib, json, re, struct, pathlib
 
 def require(value, message):
     if not value: raise ValueError(message)
@@ -64,3 +64,15 @@ def embedded_inputs(data,release,commit=None):
     for key in ['lockfileSha256','inputsFingerprint','publicConfigFingerprint']:require(re.fullmatch(r'[a-f0-9]{64}',inputs.get(key,'')),'Missing input fingerprint: '+key)
     require(not inputs.get('flags',{}).get('testAds',True),'Release input enables test ads')
     return inputs
+
+def archive_dev_strings(archive):
+    totals={'scannedFiles':0,'frameworkConstants':0,'spotubeLoopback':0,'executableDevRoutes':0}
+    for member in archive.infolist():
+        if member.is_dir():continue
+        name=member.filename
+        # Include native executables, dylibs/DEX and resources as well as JS.
+        if not (name.endswith(('.bundle','.jsbundle','.so','.dylib','.dex','.arsc','.xml','.plist','.json')) or '.' not in pathlib.PurePosixPath(name).name):continue
+        counts=classify_dev_strings(archive.read(member))
+        totals['scannedFiles']+=1
+        for key,value in counts.items():totals[key]+=value
+    return totals

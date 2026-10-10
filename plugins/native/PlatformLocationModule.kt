@@ -36,6 +36,7 @@ class PlatformLocationModule(private val context: ReactApplicationContext) :
 
   @ReactMethod
   fun initializeAmazonAds(appId: String, promise: Promise) {
+    if (BuildConfig.DISTRIBUTION_CHANNEL == "amazon") {promise.resolve(false);return}
     if (appId.isBlank()) {
       promise.resolve(false)
       return

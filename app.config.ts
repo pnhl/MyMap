@@ -10,11 +10,20 @@ const adMobDefaults = JSON.parse(readFileSync('./config/admob.json', 'utf8'));
 const TEST_ANDROID = 'ca-app-pub-3940256099942544~3347511713';
 const TEST_IOS = 'ca-app-pub-3940256099942544~1458002511';
 export default ({config}: ConfigContext): ExpoConfig => {
- const store = process.env.MYMAP_STORE || 'development', production = process.env.MYMAP_RELEASE === 'true', amazon = store === 'amazon';
+ const store = process.env.APP_STORE_TARGET || process.env.MYMAP_STORE || 'development', production = process.env.MYMAP_RELEASE === 'true', amazon = store === 'amazon';
+ if(process.env.APP_STORE_TARGET&&process.env.MYMAP_STORE&&process.env.APP_STORE_TARGET!==process.env.MYMAP_STORE)throw Error('Conflicting native store selectors.');
  const iosAds = process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID?.trim() || adMobDefaults.ios.appId, androidAds = process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID?.trim() || adMobDefaults.android.appId;
  if(production && process.env.EXPO_PUBLIC_ENABLE_TEST_ADS === 'true')throw Error('Release must disable test ads.');
  const adId = store === 'ios' ? iosAds : store === 'play' || amazon ? androidAds : undefined;
- if(production && (!adId || adId.includes('3940256099942544') || !/^ca-app-pub-\d{16}~\d{10}$/.test(adId)))throw Error('Set the real AdMob application ID for this release platform.');
+ if(production && !amazon && (!adId || adId.includes('3940256099942544') || !/^ca-app-pub-\d{16}~\d{10}$/.test(adId)))throw Error('Set the real AdMob application ID for this release platform.');
+ if(production){
+  const units=Object.entries(process.env).filter(([key,value])=>value&&/^EXPO_PUBLIC_ADMOB_(?:IOS_)?(?:NATIVE|BANNER)_.+_ID$/.test(key));
+  for(const [key,value]of units){const text=String(value).trim(),other=key.includes('_IOS_')?adMobDefaults.android.nativeAdUnitId:adMobDefaults.ios.nativeAdUnitId;
+   if(!/^ca-app-pub-\d{16}\/\d{10}$/.test(text)||text.includes('3940256099942544')||text===other)throw Error('Invalid or wrong-platform release ad unit: '+key);
+   const expected=key.includes('_IOS_')?adMobDefaults.ios.nativeAdUnitId:adMobDefaults.android.nativeAdUnitId;
+   if(key.includes('_BANNER_')||text!==expected)throw Error('Unregistered release ad unit/platform: '+key+'. Review config/admob.json before enabling it.');
+  }
+ }
  const schemes = Array.isArray(config.scheme)?config.scheme:config.scheme?[config.scheme]:[];
  const managed=['react-native-google-mobile-ads','@react-native-firebase/app','@react-native-firebase/auth','expo-apple-authentication','expo-build-properties','expo-widgets','./plugins/withMyMapAndroid.ts'];
  const plugins=(config.plugins||[]).filter(p=>!managed.includes((Array.isArray(p)?p[0]:p)||''));
@@ -40,14 +49,15 @@ export default ({config}: ConfigContext): ExpoConfig => {
     NSLocationAlwaysUsageDescription:'MyMap dùng vị trí nền để ghi hành trình bạn đã bật, kể cả khi khóa màn hình. Bạn có thể dừng ghi trong ứng dụng.',
     NSSpeechRecognitionUsageDescription:'MyMap nhận dạng giọng nói trên thiết bị khi bạn chủ động tìm địa điểm bằng giọng nói.',
     UIApplicationShortcutItems:[{UIApplicationShortcutItemType:'mymap.sos',UIApplicationShortcutItemTitle:'Mở SOS',UIApplicationShortcutItemIconType:'UIApplicationShortcutIconTypeAlarm'},{UIApplicationShortcutItemType:'mymap.smart',UIApplicationShortcutItemTitle:'Ghi hành trình',UIApplicationShortcutItemIconType:'UIApplicationShortcutIconTypeLocation'},{UIApplicationShortcutItemType:'mymap.camera',UIApplicationShortcutItemTitle:'Chụp khoảnh khắc',UIApplicationShortcutItemIconType:'UIApplicationShortcutIconTypeCapturePhoto'}],
-    UIBackgroundModes:['location','audio','processing'],BGTaskSchedulerPermittedIdentifiers:['com.expo.modules.backgroundtask.processing'],NSSupportsLiveActivities:widgets,
+    UIBackgroundModes:['location','audio','processing','remote-notification'],BGTaskSchedulerPermittedIdentifiers:['com.expo.modules.backgroundtask.processing'],NSSupportsLiveActivities:widgets,
    },entitlements:{...config.ios?.entitlements,'com.apple.developer.game-center':true}},
   plugins:[...plugins,['@react-native-firebase/app',{ios:{useFrameworks:'static',disableSPM:true}}],'@react-native-firebase/auth','expo-apple-authentication',
    ['expo-build-properties',{ios:{useFrameworks:'static',deploymentTarget:'16.4'}}],
-   './plugins/withMyMapAndroid.ts','./plugins/with-release-security.cjs',
+   './plugins/withMyMapAndroid.ts','./plugins/with-adm.cjs',
    ['./plugins/with-ios-companions.cjs',{watch:process.env.MYMAP_ENABLE_WATCH!=='false',carPlay:process.env.MYMAP_ENABLE_CARPLAY==='true'}],
    ...(widgets?[['expo-widgets',{groupIdentifier:'group.com.pnhl.vibecoding',widgets:[{name:'MyMapMomentWidget',displayName:'Khoảnh khắc MyMap',description:'Khoảnh khắc bạn đã chọn chia sẻ.',ios:{supportedFamilies:['systemSmall','systemMedium']}}]}] as any]:[]),
-   ['react-native-google-mobile-ads',{androidAppId:androidAds||TEST_ANDROID,iosAppId:iosAds||TEST_IOS}],
+   ...(!amazon?[['react-native-google-mobile-ads',{androidAppId:androidAds||TEST_ANDROID,iosAppId:iosAds||TEST_IOS}] as any]:[]),
+   './plugins/with-release-security.cjs',
   ],
  };
 };

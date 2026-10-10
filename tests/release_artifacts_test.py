@@ -28,7 +28,7 @@ class AmazonAdMobValidation(unittest.TestCase):
     def validate(self, extra='', app_id=True):
         folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup);apk=pathlib.Path(folder.name)/'amazon.apk'
         with zipfile.ZipFile(apk,'w') as archive:
-            archive.writestr('assets/index.android.bundle',b'shared-bundle')
+            archive.writestr('assets/index.android.bundle',bytes.fromhex('c61fbc03c103191f')+b'shared-bundle')
             archive.writestr('assets/mymap-release-inputs.json',json.dumps({**verify.RELEASE,'commit':'a'*40,'lockfileSha256':'a'*64,'publicConfigFingerprint':'b'*64,'inputsFingerprint':'c'*64,'flags':{'testAds':False}}))
             for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:archive.writestr('res/xml/'+rule+'.xml',b'fixture')
         badging=f"package: name='{verify.RELEASE['applicationId']}' versionCode='{verify.RELEASE['build']}' versionName='{verify.RELEASE['version']}'"

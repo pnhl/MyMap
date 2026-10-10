@@ -37,8 +37,8 @@ test('placement overrides remain platform specific', () => {
   assert.equal(env.iosNativeAdUnitIds.smart, defaults.ios.nativeAdUnitId);
 });
 
-test('all release profiles configure the Mobile Ads plugin and reject sample application IDs', () => {
-  for (const store of ['play','amazon','ios']) {
+test('eligible release profiles configure Mobile Ads and reject sample application IDs', () => {
+  for (const store of ['play','ios']) {
     const ads = config(store).plugins.find(p => Array.isArray(p) && p[0] === 'react-native-google-mobile-ads');
     assert.equal(ads[1].androidAppId, defaults.android.appId);
     assert.equal(ads[1].iosAppId, defaults.ios.appId);
@@ -48,9 +48,14 @@ test('all release profiles configure the Mobile Ads plugin and reject sample app
   }
 });
 
-test('Fire autolinks full Mobile Ads while still excluding native Google Sign-In', () => {
+test('Fire excludes both Google Mobile Ads and Google Sign-In by default', () => {
   const module = {exports:{}};
   vm.runInNewContext(fs.readFileSync('react-native.config.js','utf8'), {module,process:{env:{MYMAP_STORE:'amazon'}}});
   assert.equal(module.exports.dependencies['@react-native-google-signin/google-signin'].platforms.android, null);
-  assert.equal(module.exports.dependencies['react-native-google-mobile-ads'], undefined);
+  assert.equal(module.exports.dependencies['react-native-google-mobile-ads'].platforms.android, null);
+  assert.ok(!config('amazon').plugins.some(p=>Array.isArray(p)&&p[0]==='react-native-google-mobile-ads'));
+});
+test('release rejects sample and known wrong-platform native units',()=>{
+ for(const values of [{EXPO_PUBLIC_ADMOB_IOS_NATIVE_SMART_ID:defaults.android.nativeAdUnitId},{EXPO_PUBLIC_ADMOB_NATIVE_SMART_ID:defaults.ios.nativeAdUnitId},{EXPO_PUBLIC_ADMOB_NATIVE_SMART_ID:'ca-app-pub-3940256099942544/2247696110'}])assert.throws(()=>config('play',values),/wrong-platform/);
+ assert.throws(()=>config('play',{APP_STORE_TARGET:'amazon'}),/Conflicting/);
 });
