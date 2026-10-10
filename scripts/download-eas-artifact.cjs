@@ -10,7 +10,10 @@ async function download(input,output,expectedCommit){
  fs.mkdirSync(path.dirname(output),{recursive:true});const response=await fetch(url,{signal:AbortSignal.timeout(600000)});
  if(!response.ok||!response.body)throw Error('EAS artifact download failed.');
  await pipeline(Readable.fromWeb(response.body),fs.createWriteStream(output));
- fs.writeFileSync(output+'.provenance.json',JSON.stringify({commit:expected,buildId:build.id,appVersion:build.appVersion,appBuildVersion:build.appBuildVersion},null,2));
+ const inputs=JSON.parse(execFileSync(process.platform==='win32'?'python':'python3',['scripts/read-artifact-inputs.py',output],{encoding:'utf8'}));
+ const local=require('./release-inputs.cjs').releaseInputs();
+ if(inputs.commit!==expected||inputs.lockfileSha256!==local.lockfileSha256)throw Error('Download input commit/lock mismatch.');
+ fs.writeFileSync(output+'.provenance.json',JSON.stringify({...inputs,buildId:build.id,appVersion:build.appVersion,appBuildVersion:build.appBuildVersion},null,2));
  console.log('Downloaded '+path.basename(output)+' from verified source commit.');
 }
 if(require.main===module)download(process.argv[2],process.argv[3]).catch(e=>{console.error(e.message);process.exitCode=1;});

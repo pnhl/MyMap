@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$(uname)" == Darwin ]] || { echo 'iOS archive requires macOS and Xcode.'; exit 1; }
-export MYMAP_STORE=ios MYMAP_RELEASE=true EXPO_PUBLIC_ENABLE_TEST_ADS=false RNLLAMA_SKIP_POSTINSTALL=1
+export APP_STORE_TARGET=ios MYMAP_STORE=ios MYMAP_RELEASE=true EXPO_PUBLIC_ENABLE_TEST_ADS=false RNLLAMA_SKIP_POSTINSTALL=1
 node scripts/release-check.cjs
 node scripts/prepare-ios-ai.cjs
 npx expo prebuild --platform ios --no-install
-(cd ios && pod install)
+node scripts/native-locks.cjs restore ios
+(cd ios && pod install --deployment)
 workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
 scheme=$(node -p "require('./app.json').expo.name")
 mkdir -p dist/releases
@@ -19,3 +20,4 @@ cp -R "$app" "$staging/Payload/"
 (cd "$staging" && zip -qr MyMap-ios-unsigned.ipa Payload)
 mv "$staging/MyMap-ios-unsigned.ipa" dist/releases/MyMap-ios-unsigned.ipa
 python3 scripts/verify-artifacts.py --ios dist/releases/MyMap-ios-unsigned.ipa --unsigned
+node scripts/write-artifact-provenance.cjs dist/releases/MyMap-ios-unsigned.ipa

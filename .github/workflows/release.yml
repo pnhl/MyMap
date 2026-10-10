@@ -45,6 +45,7 @@ jobs:
         store: [play, amazon]
     env:
       MYMAP_STORE: ${{ matrix.store }}
+      APP_STORE_TARGET: ${{ matrix.store }}
       MYMAP_RELEASE: 'true'
       EXPO_PUBLIC_ENABLE_TEST_ADS: 'false'
       RNLLAMA_SKIP_POSTINSTALL: '1'
@@ -65,13 +66,14 @@ jobs:
         env:
           FIREBASE_ANDROID_BASE64: ${{ secrets.FIREBASE_ANDROID_BASE64 }}
           MYMAP_PUBLIC_ENV: ${{ secrets.MYMAP_PUBLIC_ENV }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ matrix.store == 'amazon' && secrets.AMAZON_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ matrix.store == 'amazon' && secrets.AMAZON_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ matrix.store == 'amazon' && secrets.AMAZON_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ matrix.store == 'amazon' && secrets.AMAZON_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
         run: node scripts/restore-ci-config.cjs android
       - run: npm run prepare:android
       - run: npx expo prebuild --platform android --no-install
+      - run: node scripts/native-locks.cjs restore android
       - name: Compile signed releases
         working-directory: android
         run: |
@@ -84,14 +86,17 @@ jobs:
       - name: Verify artifacts
         run: |
           mkdir -p dist/releases
+          node scripts/release-inputs.cjs .local/release-inputs.json
           if [ "$MYMAP_STORE" = play ]; then
             cp android/app/build/outputs/apk/google/release/*.apk dist/releases/play.apk
             cp android/app/build/outputs/bundle/googleRelease/*.aab dist/releases/play.aab
             cp companions/wear/build/outputs/apk/release/*.apk dist/releases/wear.apk
             cp companions/wear/build/outputs/bundle/release/*.aab dist/releases/wear.aab
+            node scripts/write-artifact-provenance.cjs dist/releases/play.apk dist/releases/play.aab
             python3 scripts/verify-artifacts.py --play dist/releases/play.apk --wear dist/releases/wear.apk --commit "$GITHUB_SHA"
           else
             cp android/app/build/outputs/apk/amazon/release/*.apk dist/releases/amazon.apk
+            node scripts/write-artifact-provenance.cjs dist/releases/amazon.apk
             python3 scripts/verify-artifacts.py --amazon dist/releases/amazon.apk --commit "$GITHUB_SHA"
           fi
       - uses: actions/upload-artifact@v4
@@ -102,7 +107,7 @@ jobs:
   ios-unsigned:
     if: github.event_name == 'workflow_dispatch' && inputs.build_release
     needs: checks
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       MYMAP_STORE: ios
       MYMAP_RELEASE: 'true'
@@ -120,16 +125,18 @@ jobs:
           FIREBASE_IOS_PLIST_BASE64: ${{ secrets.FIREBASE_IOS_PLIST_BASE64 }}
           MYMAP_PUBLIC_ENV: ${{ secrets.MYMAP_PUBLIC_ENV }}
         run: node scripts/restore-ci-config.cjs ios
+      - name: Select pinned Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
       - run: bash scripts/build-ios-unsigned.sh
       - uses: actions/upload-artifact@v4
         with:
           name: ios-unsigned
-          path: dist/releases/*.ipa
+          path: dist/releases/
           if-no-files-found: error
   ios-store:
     if: github.event_name == 'workflow_dispatch' && inputs.build_release
     needs: checks
-    runs-on: macos-latest
+    runs-on: macos-26
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_BUILD: 'true'
@@ -172,8 +179,15 @@ jobs:
       - name: Compare all release artifacts from this commit
         env:
           BUNDLETOOL_JAR: .local/bundletool.jar
-        run: python3 scripts/verify-artifacts.py --ios artifacts/ios-signed/ios-signed.ipa --play artifacts/play/play.apk --amazon artifacts/amazon/amazon.apk --aab artifacts/play/play.aab --commit "$GITHUB_SHA" --complete
+        run: python3 scripts/verify-artifacts.py --ios artifacts/ios-signed/ios-signed.ipa --play artifacts/play/play.apk --amazon artifacts/amazon/amazon.apk --aab artifacts/play/play.aab --ios-unsigned artifacts/ios-unsigned/MyMap-ios-unsigned.ipa --commit "$GITHUB_SHA" --complete
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Assemble five-artifact release manifest
+        run: |
+          node -e "require('fs').writeFileSync('.local/release-map.json',JSON.stringify({ios:'artifacts/ios-signed/ios-signed.ipa','ios-unsigned':'artifacts/ios-unsigned/MyMap-ios-unsigned.ipa',aab:'artifacts/play/play.aab',play:'artifacts/play/play.apk',amazon:'artifacts/amazon/amazon.apk'}))"
+          node scripts/assemble-release-set.cjs .local/release-map.json dist/releases/release-set.json
       - uses: actions/upload-artifact@v4
         with:
           name: release-verification
-          path: dist/releases/verification.json
+          path: dist/releases/*.json

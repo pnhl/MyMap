@@ -18,3 +18,9 @@ Phase 0 ghi repo chưa có Git và thiếu adapter iOS. Hiện Git đã chứa `
 ## Blocker phải nghiệm thu bên ngoài
 
 Ký thật và bộ 5 artifact cùng commit; macOS/Xcode compile Swift; Apple entitlement push/CarPlay; ADM SDK/config/key và FCM/APNs credentials; triển khai backend production; iPhone/Android/Fire/Wear thật. Hoàn thiện code có thể kiểm bằng fixture, giữ provider chưa sẵn sàng sau cờ, không tuyên bố foreground polling thay được ADM khi app đóng.
+
+## Checkpoint L1 và rà bí mật
+
+Năm profile và manifest release set đã có; fingerprint public không ghi giá trị key/URL. Signing local tách play/amazon, configure/compile Gradle không đọc file ký. Native dependency locks là input còn thiếu: production dừng khi chưa có lock được resolve và review trên host phù hợp. Không gọi pipeline tái lập hoàn tất chỉ vì có npm lock.
+
+Scanner history đọc 666 blobs (30 commits gần nhất và objects reachable). Phát hiện chuỗi giống Firebase API key trong **5 blob lịch sử** của `.github/workflows/build-firebase-xctest-ios.yml`, mỗi blob hai dòng. Không dùng key để kiểm online, không in giá trị. Có thể là fixture cũ, chưa đủ chứng cứ gọi key đang hoạt động; chủ dự án cần xác minh, giới hạn API/package/certificate và rotate nếu thật. Source hiện tại không có finding. Không sửa/rewrite lịch sử chia sẻ khi chưa được yêu cầu; kết quả history scan vẫn fail trung thực.
