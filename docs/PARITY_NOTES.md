@@ -58,3 +58,5 @@ Checkpoint cuối Windows: strict compile Google/Fire và Wear đạt; Fire arm6
 Windows Ninja vượt MAX_PATH khi CXX staging nằm sâu trong workspace; plugin chuyển staging vào java.io.tmpdir với path hash và CMAKE_OBJECT_PATH_MAX=240. Gradle heap 4 GB/metaspace 1 GB khắc phục R8 GC thrash; Kotlin daemon 1 GB. R8 build hiện qua nhưng có stack-map warnings trong Amazon Appstore SDK 3.0.9 và Google Auth 21.5.0; cần smoke test và kiểm lại khi nâng R8.
 
 EAS Android dùng JSON ký private riêng từng store, staging credentials.json tạm thời và dọn sau build; từ chối overwrite file sẵn có. CI không fallback khóa Google khi thiếu Amazon secret. Warm push taps nay có native event khi app đang active; token rotation vô hiệu lease/ticket cũ để phản hồi invalid-token cũ không xóa token mới. Có tests hồi quy; provider delivery thật vẫn BLOCKED.
+
+CI Linux đầu tiên qua checks nhưng setup-android v3 mặc định yêu cầu package `tools` đã bị repository Google loại bỏ. Workflow chỉ định platform-tools, platforms;android-36 và build-tools;36.0.0, không dùng SDK tools cũ; lỗi xảy ra trước compile, không coi đây là kết quả native.
