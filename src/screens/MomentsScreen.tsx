@@ -13,10 +13,12 @@ import {listLocalMoments,listSharedMoments,listMomentGroups,createMomentGroup,le
 import {sameLocalDate} from '../services/momentPolicy';
 import {listConnections,type FriendConnection} from '../services/friendDiscovery';
 import {pauseMusicPlayback} from '../services/musicPlayback';
+import {cancelMomentRecap} from '../services/moments';
 const message=(e:unknown)=>e instanceof Error?e.message:'Chưa hoàn tất. Hãy thử lại.';
 export default function MomentsScreen(){
  const {theme}=useAppTheme(),r=useResponsiveLayout();
  const loadGeneration=useRef(0),loadInFlight=useRef(false);
+ const [exporting,setExporting]=useState(false);
  const [range,setRange]=useState<0|1|7>(0),[author,setAuthor]=useState<string|null>(null),[limit,setLimit]=useState(40),[cloudError,setCloudError]=useState<string|null>(null);
  const nav=useNavigation<any>(),route=useRoute<any>(),insets=useSafeAreaInsets();
  const [tab,setTab]=useState<'mine'|'friends'|'groups'>('mine'),[local,setLocal]=useState<Moment[]>([]),[shared,setShared]=useState<Moment[]>([]),[groups,setGroups]=useState<MomentGroup[]>([]),[friends,setFriends]=useState<FriendConnection[]>([]),[group,setGroup]=useState<string|null>(route.params?.groupId??null),[error,setError]=useState<string|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[modal,setModal]=useState<'group'|'widget'|null>(null),[name,setName]=useState(''),[members,setMembers]=useState<string[]>([]),[recap,setRecap]=useState(false),[selected,setSelected]=useState<string[]>([]),[exportUri,setExportUri]=useState<string|null>(null),[exports,setExports]=useState<MomentRecap[]>([]),[unclaimed,setUnclaimed]=useState(0),[widgetMode,setWidgetMode]=useState<WidgetFilter['mode']>('friends'),[widgetAuthor,setWidgetAuthor]=useState<string|undefined>(),[widgetGroup,setWidgetGroup]=useState<string|undefined>();
@@ -45,12 +47,13 @@ export default function MomentsScreen(){
  const toggle=(id:string,list:string[],update:(list:string[])=>void)=>update(list.includes(id)?list.filter(x=>x!==id):[...list,id]);
  async function action(work:()=>Promise<void>){if(busy)return;setBusy(true);setError(null);try{await work();}catch(e){setError(message(e));}finally{setBusy(false);}}
  const button=(label:string,press:()=>void,primary=false)=><Pressable accessibilityRole="button" disabled={busy} onPress={press} style={({pressed})=>[s.button,{backgroundColor:theme.colors.bgRaised},primary&&{backgroundColor:theme.colors.primary},busy&&{opacity:.5},pressed&&{transform:[{scale:.97}]}]}><Text style={[s.buttonText,primary&&{color:'#072E38'}]}>{label}</Text></Pressable>;
- async function exportVideo(){await pauseMusicPlayback();setExportUri(await exportMomentRecap(local.filter(m=>selected.includes(m.id))));setExports(await listMomentRecaps());}
+ async function exportVideo(){setExporting(true);try{await pauseMusicPlayback();setExportUri(await exportMomentRecap(local.filter(m=>selected.includes(m.id))));setExports(await listMomentRecaps());}finally{setExporting(false);}}
  return <ScreenScaffold title="Khoảnh khắc" subtitle="Mỗi ngày một chút, gần nhau hơn" refreshControl={<RefreshControl refreshing={loading} onRefresh={()=>void load()} tintColor={theme.colors.primary}/>} actions={[
   {id:'widget',icon:'widgets-outline',label:'Widget khoảnh khắc',onPress:()=>setModal('widget')},
   {id:'friends',icon:tab==='groups'?'account-multiple-plus-outline':'account-heart-outline',label:tab==='groups'?'Tạo nhật ký nhóm':'Xem bạn bè',onPress:()=>{if(tab==='groups'){setName('');setMembers([]);setModal('group');}else{setTab('friends');setRecap(false);setAuthor(null);}}},
   {id:'camera',icon:'camera-outline',label:'Chụp khoảnh khắc',primary:true,onPress:()=>nav.navigate('MomentCamera',{purpose:'moment'})},
  ]}>
+  {exporting&&<Pressable accessibilityRole="button" onPress={()=>void cancelMomentRecap().catch(e=>setError(message(e)))} style={s.button}><Text style={s.buttonText}>Hủy xuất video đang chạy</Text></Pressable>}
   <View style={[s.hero,{backgroundColor:theme.colors.bgRaised}]}>
    <View style={{flex:1,gap:8}}><Text style={[s.eyebrow,{color:theme.colors.primary}]}>NHẬT KÝ NHỎ CỦA CHÚNG TA</Text><Text style={[s.heroTitle,{color:theme.colors.text}]}>Hôm nay của bạn{ '\n' }có gì vui?</Text><Text style={[s.muted,{color:theme.colors.muted}]}>Ảnh và video được chia sẻ với những người bạn chọn.</Text></View>
    <View style={[s.todayCircle,{backgroundColor:theme.colors.primary+'18'}]}><Text style={[s.todayNumber,{color:theme.colors.primary}]}>{todayCount}</Text><Text style={[s.muted,{color:theme.colors.muted}]}>hôm nay</Text></View>

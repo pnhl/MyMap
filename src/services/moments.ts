@@ -9,6 +9,7 @@ import {getDb} from '../db/database';
 import {getCurrentUser,subscribeAuthState} from './auth';
 import {supabase,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY} from './supabase';
 import {MAX_MOMENT_BYTES,publishCoordinates,validateMoment,recapItems} from './momentPolicy';
+import type {RecapRequest} from '../types/parity';
 import type {Moment,MomentGroup,MomentKind,MomentReply} from '../types/moment';
 export type {Moment,MomentGroup,MomentReply} from '../types/moment';
 const native=Platform.OS==='ios'?requireOptionalNativeModule<{exportRecap(json:string):Promise<string>;shareFile(uri:string):Promise<void>}>('MyMapMoments') as any:NativeModules.MomentPlatform;
@@ -95,9 +96,11 @@ export async function listMomentRecaps():Promise<MomentRecap[]>{
 export async function exportMomentRecap(items:Moment[]){
  if(!native?.exportRecap)throw new Error('Cần bản native MyMap có module xuất video tổng kết.');
  const a=await account();if(items.some(m=>m.account!==a))throw new Error('Khoảnh khắc thuộc tài khoản khác.');
- const uri=await native.exportRecap(JSON.stringify({account:a,items:recapItems(items)})) as string;
+ const request:RecapRequest={schema:1,account:a,items:recapItems(items)};
+ const uri=await native.exportRecap(JSON.stringify(request)) as string;
  if(a!==await account())throw new Error('Tài khoản đã thay đổi. Video vẫn được lưu riêng cho tài khoản trước.');return uri;
 }
+export async function cancelMomentRecap(){if(!native?.cancelRecap)throw Error('Bản native chưa hỗ trợ hủy xuất video.');return native.cancelRecap() as Promise<boolean>;}
 export async function shareMomentFile(uri:string){if(!native?.shareFile)throw new Error('Thiết bị chưa hỗ trợ chia sẻ tệp.');await native.shareFile(uri);}
 export type WidgetFilter={mode:'friends'|'personal'|'anniversary';author?:string;group?:string;momentId?:string};
 export async function configureMomentWidget(filter:WidgetFilter){
