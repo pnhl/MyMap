@@ -13,11 +13,12 @@ import {
   firebaseGoogleAndroidClientId,
   firebaseGoogleWebClientId,
 } from '../services/firebase';
-import { signInWithGoogleToken, type AuthResult } from '../services/auth';
+import { getCurrentUser, signInWithGoogleToken, type AuthResult } from '../services/auth';
 
 type Props = {
   disabled: boolean;
   loading: boolean;
+  linkAccount?: boolean;
   onStart: () => void;
   onFinish: () => void;
   onResult: (result: AuthResult) => void;
@@ -66,6 +67,8 @@ function ConfiguredGoogleButton(props: Props) {
   const handlePress = async () => {
     props.onStart();
     try {
+      const owner = props.linkAccount ? (await getCurrentUser())?.id : undefined;
+      if (props.linkAccount && !owner) {props.onError('Hãy đăng nhập tài khoản muốn liên kết trước.');return;}
       if (Platform.OS === 'android') {
         const available = await GoogleSignin.hasPlayServices({
           showPlayServicesUpdateDialog: false,
@@ -87,7 +90,7 @@ function ConfiguredGoogleButton(props: Props) {
         return;
       }
 
-      const result = await signInWithGoogleToken(idToken);
+      const result = owner ? await signInWithGoogleToken(idToken,null,owner) : await signInWithGoogleToken(idToken);
       props.onResult(result);
     } catch (error) {
       props.onError(googleSignInError(error));
@@ -108,7 +111,7 @@ function ConfiguredGoogleButton(props: Props) {
       ) : (
         <MaterialCommunityIcons name="google" size={22} color="#4285F4" />
       )}
-      <Text style={styles.title}>Tiếp tục với Google</Text>
+      <Text style={styles.title}>{props.linkAccount ? 'Liên kết Google' : 'Tiếp tục với Google'}</Text>
     </TouchableOpacity>
   );
 }

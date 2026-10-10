@@ -6,6 +6,8 @@ import {
   AppleAuthProvider,
   GoogleAuthProvider,
   EmailAuthProvider,
+  PhoneAuthProvider,
+  verifyPhoneNumber,
   linkWithCredential,
   createUserWithEmailAndPassword,
   isSignInWithEmailLink,
@@ -22,6 +24,7 @@ import {
   updateProfile,
   type AuthError,
   type ConfirmationResult,
+  type AuthCredential,
 } from '@react-native-firebase/auth';
 import {
   firebaseAuth,
@@ -40,6 +43,17 @@ export interface AuthResult {
 export const OAUTH_CALLBACK_URL = 'mymap://auth/callback';
 const EMAIL_LINK_KEY = 'mymap:firebase-email-link-address';
 let phoneConfirmation: ConfirmationResult | null = null;
+let phoneLink: {owner: string; verificationId: string; expires: number} | null = null;
+let phoneLinkGeneration = 0;
+
+async function useProviderCredential(credential: AuthCredential, expectedOwner?: string) {
+  if (!expectedOwner) return signInWithCredential(firebaseAuth, credential);
+  const user = firebaseAuth.currentUser;
+  if (!user || user.uid !== expectedOwner) throw Error('Tài khoản đã thay đổi. Hãy bắt đầu liên kết lại.');
+  const result = await linkWithCredential(user, credential);
+  if (result.user.uid !== expectedOwner) throw Error('Không thể xác nhận tài khoản liên kết.');
+  return result;
+}
 
 function authErrorMessage(error: unknown, fallback: string): string {
   const authError = error as Partial<AuthError> | undefined;
@@ -53,9 +67,9 @@ function authErrorMessage(error: unknown, fallback: string): string {
     case 'auth/email-already-in-use':
       return 'Email này đã có tài khoản Firebase.';
     case 'auth/credential-already-in-use':
-      return 'Email này thuộc tài khoản khác. Không thể tự động gộp dữ liệu; hãy dùng email khác hoặc đăng nhập tài khoản đó.';
+      return 'Thông tin đăng nhập này thuộc tài khoản khác. Không thể tự động gộp dữ liệu; hãy đăng nhập tài khoản đó hoặc chọn phương thức khác.';
     case 'auth/requires-recent-login':
-      return 'Hãy đăng nhập lại bằng phương thức hiện tại rồi liên kết email để xác nhận danh tính.';
+      return 'Hãy đăng nhập lại bằng phương thức hiện tại rồi liên kết để xác nhận danh tính.';
     case 'auth/weak-password':
       return 'Mật khẩu chưa đáp ứng chính sách bảo mật của Firebase.';
     case 'auth/user-disabled':
@@ -174,21 +188,25 @@ export async function signInAnonymously(): Promise<AuthResult> {
 export async function signInWithGoogleToken(
   idToken: string,
   accessToken?: string | null,
+  expectedOwner?: string,
 ): Promise<AuthResult> {
   if (!idToken) {
     return { user: null, session: null, error: 'Google không trả về ID token hợp lệ.' };
   }
   try {
     const credential = GoogleAuthProvider.credential(idToken, accessToken);
-    await signInWithCredential(firebaseAuth, credential);
+    await useProviderCredential(credential, expectedOwner);
     return currentResult();
   } catch (error) {
     return { user: null, session: null, error: authErrorMessage(error, 'Không thể đăng nhập bằng Google.') };
   }
 }
 
-export async function signInWithApple(): Promise<AuthResult> {
+export async function signInWithApple(linkAccount = false): Promise<AuthResult> {
   try {
+    await waitForFirebaseAuth();
+    const owner = linkAccount ? firebaseAuth.currentUser?.uid : undefined;
+    if (linkAccount && !owner) throw Error('Hãy đăng nhập tài khoản muốn liên kết trước.');
     if (!(await AppleAuthentication.isAvailableAsync())) {
       return { user: null, session: null, error: 'Sign in with Apple chỉ khả dụng trên thiết bị Apple được hỗ trợ.' };
     }
@@ -208,7 +226,7 @@ export async function signInWithApple(): Promise<AuthResult> {
       return { user: null, session: null, error: 'Apple không trả về identity token.' };
     }
     const credential = AppleAuthProvider.credential(apple.identityToken, rawNonce);
-    const result = await signInWithCredential(firebaseAuth, credential);
+    const result = await useProviderCredential(credential, owner);
     const displayName = apple.fullName
       ? [apple.fullName.givenName, apple.fullName.familyName].filter(Boolean).join(' ')
       : '';
@@ -253,6 +271,44 @@ export async function confirmPhoneCode(code: string): Promise<AuthResult> {
   } catch (error) {
     return { user: null, session: null, error: authErrorMessage(error, 'Không thể xác nhận mã OTP.') };
   }
+}
+
+// Verification alone never signs in or changes UID. Confirmation explicitly
+// links a credential to the owner captured before the SMS request.
+export async function sendPhoneLinkCode(phoneNumber: string): Promise<{success: boolean; error?: string}> {
+  const cleanPhone = phoneNumber.replace(/[\s()-]/g, '');
+  if (!/^\+[1-9][0-9]{6,14}$/.test(cleanPhone)) return {success:false,error:'Nhập số điện thoại quốc tế, ví dụ +84901234567.'};
+  const epoch = ++phoneLinkGeneration;
+  phoneLink = null;
+  try {
+    await waitForFirebaseAuth();
+    const owner = firebaseAuth.currentUser?.uid;
+    if (!owner) throw Error('Hãy đăng nhập tài khoản muốn liên kết trước.');
+    const verificationId = await new Promise<string>((resolve,reject) => {
+      const timer = setTimeout(() => reject(Error('Yêu cầu OTP đã hết thời gian. Hãy thử lại.')),180000);
+      const finish = (id?: string, error?: unknown) => {clearTimeout(timer);if(error)reject(error);else if(id)resolve(id);else reject(Error('Firebase không trả về phiên xác minh OTP.'));};
+      try {
+        verifyPhoneNumber(firebaseAuth,cleanPhone).on('state_changed',snapshot => {
+          if (snapshot.state === 'error') finish(undefined,snapshot.error);
+          else if (snapshot.verificationId) finish(snapshot.verificationId);
+        }, error => finish(undefined,error));
+      } catch (error) {finish(undefined,error);}
+    });
+    if (epoch !== phoneLinkGeneration || firebaseAuth.currentUser?.uid !== owner) throw Error('Tài khoản đã thay đổi. Hãy bắt đầu liên kết lại.');
+    phoneLink = {owner,verificationId,expires:Date.now()+300000};
+    return {success:true};
+  } catch (error) {return {success:false,error:authErrorMessage(error,'Không thể gửi mã liên kết điện thoại.')};}
+}
+
+export async function confirmPhoneLinkCode(code: string): Promise<AuthResult> {
+  const pending = phoneLink;
+  if (!pending || pending.expires < Date.now()) return {user:null,session:null,error:'Hãy yêu cầu mã liên kết điện thoại mới.'};
+  if (!/^[0-9]{6}$/.test(code.trim())) return {user:null,session:null,error:'Mã OTP phải gồm 6 chữ số.'};
+  try {
+    await useProviderCredential(PhoneAuthProvider.credential(pending.verificationId,code.trim()),pending.owner);
+    phoneLink = null;
+    return currentResult();
+  } catch (error) {return {user:null,session:null,error:authErrorMessage(error,'Chưa liên kết được điện thoại.')};}
 }
 
 export async function signInWithGameCenter(): Promise<AuthResult> {
@@ -344,6 +400,7 @@ export async function handleAuthUrl(url: string, confirmationEmail?:string): Pro
 
 export async function signOutUser(): Promise<{ error?: string | null }> {
   try {
+    phoneLinkGeneration++; phoneLink = null; phoneConfirmation = null;
     await import('./pushRegistration').then(m=>m.revokePushDelivery()).catch(()=>undefined);
     await signOut(firebaseAuth);
     return { error: null };
