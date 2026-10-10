@@ -31,3 +31,4 @@ class BinaryChecks(unittest.TestCase):
   counts=classify_dev_strings(b'localhost:8081 ws://127.0.0.1:9999/ws 10.0.2.2')
   self.assertEqual(counts['spotubeLoopback'],1);self.assertEqual(counts['frameworkConstants'],2)
   with self.assertRaisesRegex(ValueError,'development route'):classify_dev_strings(b'new WebSocket("ws://localhost:8081/debugger-proxy")')
+  with self.assertRaisesRegex(ValueError,'development route'):classify_dev_strings(b'fetch("http://localhost:3000/api/data")')

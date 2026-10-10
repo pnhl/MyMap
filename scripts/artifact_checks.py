@@ -68,7 +68,7 @@ def classify_dev_strings(data):
     text=data.decode('utf8',errors='ignore')
     counts={'frameworkConstants':len(re.findall(r'localhost:8081|10\.0\.2\.2',text)),
             'spotubeLoopback':len(re.findall(r'(?:ws?://)?127\.0\.0\.1',text)),
-            'executableDevRoutes':len(re.findall(r'''(?:fetch|WebSocket|axios\.(?:get|post))\s*\(\s*["'`](?:https?|ws)://(?:localhost|10\.0\.2\.2)(?::\d+)?/(?:debugger-proxy|symbolicate|status|index\.bundle)''',text))}
+            'executableDevRoutes':len(re.findall(r'''(?:fetch|WebSocket|axios\.(?:get|post))\s*\(\s*["'`](?:https?|ws)://(?:localhost|10\.0\.2\.2)(?::\d+)?(?:/|["'`])|(?:fetch|axios\.(?:get|post))\s*\(\s*["'`]https?://127\.0\.0\.1(?::\d+)?(?:/|["'`])|WebSocket\s*\(\s*["'`]ws://127\.0\.0\.1:8081/(?:debugger-proxy|symbolicate|status|index\.bundle)''',text))}
     require(not counts['executableDevRoutes'],'Executable development route in release')
     return counts
 
