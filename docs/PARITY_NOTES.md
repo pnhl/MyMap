@@ -60,3 +60,5 @@ Windows Ninja vượt MAX_PATH khi CXX staging nằm sâu trong workspace; plugi
 EAS Android dùng JSON ký private riêng từng store, staging credentials.json tạm thời và dọn sau build; từ chối overwrite file sẵn có. CI không fallback khóa Google khi thiếu Amazon secret. Warm push taps nay có native event khi app đang active; token rotation vô hiệu lease/ticket cũ để phản hồi invalid-token cũ không xóa token mới. Có tests hồi quy; provider delivery thật vẫn BLOCKED.
 
 CI Linux đầu tiên qua checks nhưng setup-android v3 mặc định yêu cầu package `tools` đã bị repository Google loại bỏ. Workflow chỉ định platform-tools, platforms;android-36 và build-tools;36.0.0, không dùng SDK tools cũ; lỗi xảy ra trước compile, không coi đây là kết quả native.
+
+Linux fresh resolution phát hiện metadata guava-parent 33.3.1-jre POM và junit-bom 5.10.2 module thiếu ở Play/Wear trong khi đã có checksum trong capture Fire. Đã tải đúng artifact từ Maven Central, đối chiếu trùng hash capture và bổ sung entries; public origins/hashes trong config/native-locks/maven-origins.json. Giữ strict verification, không dùng --write-verification-metadata trong CI.

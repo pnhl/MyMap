@@ -1,0 +1,21 @@
+{
+  "reason": "Linux fresh resolution metadata absent from warm Windows cache; independently matches reviewed Amazon fixture checksums",
+  "records": [
+    {
+      "group": "com.google.guava",
+      "name": "guava-parent",
+      "version": "33.3.1-jre",
+      "artifact": "guava-parent-33.3.1-jre.pom",
+      "url": "https://repo.maven.apache.org/maven2/com/google/guava/guava-parent/33.3.1-jre/guava-parent-33.3.1-jre.pom",
+      "sha256": "55441db27e8869dfefe053059bdf478bdc7e95585642bf391f0023345fd56287"
+    },
+    {
+      "group": "org.junit",
+      "name": "junit-bom",
+      "version": "5.10.2",
+      "artifact": "junit-bom-5.10.2.module",
+      "url": "https://repo.maven.apache.org/maven2/org/junit/junit-bom/5.10.2/junit-bom-5.10.2.module",
+      "sha256": "de23b114b3e4119a8fe6eb17bed5a3852816698bace67071579d6d927ebb080a"
+    }
+  ]
+}
