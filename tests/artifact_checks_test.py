@@ -11,6 +11,22 @@ class BinaryChecks(unittest.TestCase):
   with zipfile.ZipFile(data,'w') as archive:archive.writestr('assets/string.txt',b'Llivekit/org/jni_zero/JniInit;')
   with zipfile.ZipFile(data) as archive:
    with self.assertRaisesRegex(ValueError,'class definition'):dex_startup(archive)
+ def test_dex_requires_defined_init_code_not_only_a_method_reference(self):
+  b=bytearray(512);b[:8]=b'dex\n039\0'
+  for offset,value in [(60,112),(68,128),(88,2),(92,136),(96,2),(100,152)]:struct.pack_into('<I',b,offset,value)
+  strings=['Llivekit/org/jni_zero/JniInit;','Lexpo/modules/adapters/react/apploader/RNHeadlessAppLoader;','init','<init>'];cursor=216
+  for index,value in enumerate(strings):
+   struct.pack_into('<I',b,112+index*4,cursor);raw=value.encode();b[cursor:cursor+len(raw)+2]=bytes([len(raw)])+raw+b'\0';cursor+=len(raw)+2
+  for index in range(2):
+   struct.pack_into('<I',b,128+index*4,index);struct.pack_into('<HHI',b,136+index*8,index,0,index+2);struct.pack_into('<I',b,152+index*32,index);struct.pack_into('<I',b,176+index*32,400+index*8)
+   b[400+index*8:407+index*8]=bytes([0,0,1,0,index,1,1])
+  def verify():
+   data=io.BytesIO()
+   with zipfile.ZipFile(data,'w')as z:z.writestr('classes.dex',b)
+   with zipfile.ZipFile(data)as z:return dex_startup(z)
+  self.assertEqual(len(verify()),2)
+  b[406]=0
+  with self.assertRaisesRegex(ValueError,'startup'):verify()
  def test_framework_constants_and_spotube_are_preserved_but_active_dev_route_fails(self):
   counts=classify_dev_strings(b'localhost:8081 ws://127.0.0.1:9999/ws 10.0.2.2')
   self.assertEqual(counts['spotubeLoopback'],1);self.assertEqual(counts['frameworkConstants'],2)

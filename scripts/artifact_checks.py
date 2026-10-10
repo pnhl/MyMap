@@ -17,12 +17,28 @@ def dex_startup(archive, prefix=''):
             p+=1
             return b[p:b.index(b'\0',p)].decode('utf8',errors='replace')
         types=u32(68);methods=u32(92)
+        def uleb(p):
+            value=0
+            for shift in range(0,35,7):
+                part=b[p];p+=1;value|=(part&127)<<shift
+                if not part&128:return value,p
+            raise ValueError('Invalid DEX class data')
         for i in range(u32(96)):
-            kind=u32(u32(100)+i*32);desc=string(u32(types+kind*4))
+            entry=u32(100)+i*32;kind=u32(entry);desc=string(u32(types+kind*4))
             if desc not in wanted:continue
-            for m in range(u32(88)):
-                at=methods+m*8
-                if struct.unpack_from('<H',b,at)[0]==kind and string(u32(at+4))==wanted[desc]:found.add(desc)
+            cursor=u32(entry+24)
+            if not cursor:continue
+            sizes=[]
+            for _ in range(4):value,cursor=uleb(cursor);sizes.append(value)
+            for _ in range(sizes[0]+sizes[1]):
+                _,cursor=uleb(cursor);_,cursor=uleb(cursor)
+            for size in sizes[2:]:
+                method_index=0
+                for _ in range(size):
+                    delta,cursor=uleb(cursor);method_index+=delta
+                    _,cursor=uleb(cursor);code,cursor=uleb(cursor)
+                    at=methods+method_index*8
+                    if code and struct.unpack_from('<H',b,at)[0]==kind and string(u32(at+4))==wanted[desc]:found.add(desc)
     require(found==set(wanted),'Missing DEX startup class definition/method: '+', '.join(sorted(set(wanted)-found)))
     return sorted(found)
 
