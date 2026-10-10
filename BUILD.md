@@ -12,6 +12,8 @@ Nguồn chung là repo này. `release.json` giữ version 1.0.4, build 38 và ap
 
 ## Biến cấu hình
 
+Các khóa và file cấu hình hiện có đã được lưu vào Cloudflare Secrets Store `mymap-production`; xem [quản lý secret Cloudflare](docs/CLOUDFLARE_SECRETS.md). Việc lưu này chưa thay thế credentials CI/EAS hoặc chuyển các API gọi trực tiếp sang Worker proxy.
+
 | Biến | Mục đích |
 |---|---|
 | `MYMAP_STORE` | `play`, `amazon`, `ios`; profile EAS tự đặt |

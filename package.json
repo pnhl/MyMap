@@ -20,6 +20,8 @@
     "build:amazon": "node scripts/build-store.cjs amazon",
     "build:all": "node scripts/build-store.cjs all",
     "release:check": "node scripts/release-check.cjs",
+    "secrets:plan": "node scripts/cloudflare-secrets.cjs plan",
+    "secrets:upload": "node scripts/cloudflare-secrets.cjs upload",
     "eas-build-post-install": "node scripts/eas-post-install.cjs",
     "lint": "node scripts/lint-source.cjs"
   },

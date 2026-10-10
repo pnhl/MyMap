@@ -32,3 +32,6 @@ release-provenance.json
 __pycache__/
 **/.gradle/
 *.pyc
+**/.wrangler/
+.dev.vars
+.dev.vars.*
