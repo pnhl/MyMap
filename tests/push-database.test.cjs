@@ -10,6 +10,7 @@ test('push SQL isolates owners, denies token reads, locks leases and removes sta
  create table public.vc_profiles(id uuid primary key);create table public.vc_notifications(id uuid primary key default gen_random_uuid(),user_id uuid references public.vc_profiles(id),payload jsonb default '{}',created_at timestamptz default now(),read_at timestamptz);
  insert into public.vc_profiles values('${alice}'),('${bob}');`);
  await db.exec(fs.readFileSync('supabase/features/three_store_push_delivery.sql','utf8'));
+ await db.exec(fs.readFileSync('supabase/features/push_provider_registry.sql','utf8'));
  const claims=async(owner,role='anon')=>{await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({iss:'trusted',sub:owner,role})]);await db.exec('set role '+role);};
  await claims(alice);await db.query('select public.mm_register_push($1,$2)',[installation,'ExpoPushToken[alice-device-token]']);
  await assert.rejects(db.query('select token from private.mm_push_devices'),/permission denied/);
@@ -23,5 +24,11 @@ test('push SQL isolates owners, denies token reads, locks leases and removes sta
  await db.exec('reset role');await db.query("update private.mm_push_jobs set lease_until=now()-interval '1 minute'");await claims(bob,'service_role');assert.equal((await db.query('select public.mm_claim_push_jobs()as jobs')).rows[0].jobs.length,0);
  await db.exec('reset role');assert.equal((await db.query('select count(*)::int as n from private.mm_push_jobs')).rows[0].n,0);
  await claims(bob);await db.query('select public.mm_register_push($1,$2)',[installation,null]);await db.exec('reset role');assert.equal((await db.query('select count(*)::int as n from private.mm_push_devices')).rows[0].n,0);
+ await claims(alice);
+ await assert.rejects(db.query('select public.mm_register_push_v2($1,$2,$3,$4)',[installation,'ExpoPushToken[device-fixture]','expo','amazon']),/invalid_push_provider_token/);
+ await db.query('select public.mm_register_push_v2($1,$2,$3,$4)',[installation,'amzn1.fixture-'+ 'a'.repeat(300),'adm','amazon']);
+ await db.exec('reset role');await db.query('insert into public.vc_notifications(user_id,payload)values($1,$2)',[alice,JSON.stringify({callId:'fixture-call'})]);
+ await claims(alice,'service_role');const adm=(await db.query('select public.mm_claim_push_jobs()as jobs')).rows[0].jobs[0];assert.equal(adm.provider,'adm');assert.equal(adm.store,'amazon');
+ await db.query('select public.mm_finish_push_job($1,$2,$3,$4)',[adm.id,adm.lease,'provider_accepted',null]);await db.exec('reset role');assert.equal((await db.query('select state from private.mm_push_jobs where id=$1',[adm.id])).rows[0].state,'done');
  }finally{await db.close();}
 });

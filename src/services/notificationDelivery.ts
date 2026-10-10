@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getCurrentUser,subscribeAuthState} from './auth';
 import {supabase} from './supabase';
-import {registerPushDelivery} from './pushRegistration';
+import {registerPushDelivery,consumeNativePushOpen} from './pushRegistration';
 // Polling also works on Fire OS without FCM. It runs only while the app is active.
 // Persist the cursor per owner; never deliver a previous owner's private events.
 export function startNotificationDelivery(onOpen:(data:Record<string,unknown>)=>void){
@@ -35,7 +35,9 @@ export function startNotificationDelivery(onOpen:(data:Record<string,unknown>)=>
   void getCurrentUser().then(u=>{if(alive&&token===generation&&u?.id===data.owner){onOpen(data);void Notifications.clearLastNotificationResponseAsync();}});
  };
  const response=Notifications.addNotificationResponseReceivedListener(openResponse);
+ const openNative=async()=>{const token=generation;const data=await consumeNativePushOpen();const user=await getCurrentUser();if(alive&&token===generation&&data&&user?.id===data.owner)onOpen(data);};
+ void openNative().catch(()=>{});
  void Notifications.getLastNotificationResponseAsync().then(r=>{if(r)openResponse(r);}).catch(()=>{});
- const app=AppState.addEventListener('change',s=>{if(s==='active')void poll();});const timer=setInterval(()=>void poll(),15000);void poll();
+ const app=AppState.addEventListener('change',s=>{if(s==='active'){void poll();void openNative().catch(()=>{});}});const timer=setInterval(()=>void poll(),15000);void poll();
  return()=>{alive=false;generation++;auth();response.remove();app.remove();clearInterval(timer);};
 }
