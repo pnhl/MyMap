@@ -13,7 +13,8 @@ async function main(){
  const artifacts={};fs.mkdirSync('.local/eas-results',{recursive:true});
  for(const profile of profiles){
   const platform=profile.startsWith('ios-')?'ios':'android';
-  const result=spawnSync('npx',['--no-install','eas','build','--profile',profile,'--platform',platform,'--non-interactive','--wait','--json'],{stdio:['inherit','pipe','inherit'],encoding:'utf8',maxBuffer:16*1024*1024,shell:process.platform==='win32',env:{...process.env,MYMAP_RELEASE_COMMIT:release.commit}});
+  const build=()=>spawnSync('npx',['--no-install','eas','build','--profile',profile,'--platform',platform,'--non-interactive','--wait','--json'],{stdio:['inherit','pipe','inherit'],encoding:'utf8',maxBuffer:16*1024*1024,shell:process.platform==='win32',env:{...process.env,MYMAP_RELEASE_COMMIT:release.commit}});
+  const result=platform==='android'?require('./eas-store-credentials.cjs').withStoreCredentials(profile==='android-amazon'?'amazon':'play',build):build();
   if(result.status!==0)throw Error('EAS build failed for '+profile);
   const metadata=path.join('.local/eas-results',profile+'.json');fs.writeFileSync(metadata,result.stdout);
   const kind=profile==='ios-store'?'ios':profile==='ios-unsigned'?'ios-unsigned':profile==='android-play'?'aab':profile==='android-apk'?'play':'amazon';

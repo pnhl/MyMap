@@ -35,6 +35,7 @@
       },
       "android": {
         "gradleCommand": ":app:bundleGoogleRelease",
+        "credentialsSource": "local",
         "buildType": "app-bundle"
       }
     },
@@ -54,6 +55,7 @@
       },
       "android": {
         "gradleCommand": ":app:assembleAmazonRelease",
+        "credentialsSource": "local",
         "buildType": "apk"
       }
     },
