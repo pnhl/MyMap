@@ -19,6 +19,8 @@ yarn-error.log*
 google-services.json
 GoogleService-Info.plist
 **/build/
+!.eas/build/
+!.eas/build/*.yml
 *.ipa
 *.apk
 *.aab

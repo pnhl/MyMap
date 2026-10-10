@@ -6,7 +6,7 @@ Quy ước: DONE-VERIFIED có bằng chứng tự động trong phạm vi ghi r�
 |---|---|---|
 | L1 kiểm nguồn gộp | DONE-VERIFIED | Git chứa module my-map-ios, Swift speech/AI, widgets, Watch, Android plugins/native, Wear. Phase 0 là ảnh chụp trước khi gộp. |
 | L1 pipeline 5 artifact | DONE-UNVERIFIED | Có năm profile, release-set assembler và fingerprint embedded/sidecar; 2 test inputs/assembler đạt. Native lock chưa resolve/duyệt, production dừng rõ. Chưa có bộ 5 artifact. |
-| L2 artifact gates | DONE-UNVERIFIED | Có guard IPA/APK/AAB; cần bổ sung DEX/ELF, từng target và provenance, rồi chạy artifact thật. |
+| L2 artifact gates | DONE-UNVERIFIED | Bổ sung DEX class definitions/methods, ELF64 + zipalign 16KB, backup rules contents, embedded provenance, năm artifact, từng target iOS. 9 test Python đạt; chưa chạy bộ artifact thật. |
 | L3 chín finding | DONE-UNVERIFIED | Xem PARITY_NOTES.md; không dùng APK build 36 làm bằng chứng build mới. |
 | L4 hợp đồng và chức năng | DONE-UNVERIFIED | Kiểm theo ma trận phase 0; ADM cần SDK/credentials, các luồng native cần thiết bị. |
 | L5 kiểm thử/tài liệu | DONE-UNVERIFIED | Cập nhật kết quả sau từng cụm; QA máy thật chưa chạy. |

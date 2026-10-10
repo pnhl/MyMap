@@ -1,0 +1,12 @@
+build:
+  name: Unsigned Release IPA
+  steps:
+    - eas/checkout
+    - eas/install_node_modules
+    - run:
+        name: Build unsigned app and all extensions
+        command: bash scripts/build-ios-unsigned.sh
+    - eas/upload_artifact:
+        inputs:
+          path: dist/releases/MyMap-ios-unsigned.ipa
+          type: application-archive

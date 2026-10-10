@@ -24,3 +24,11 @@ Ký thật và bộ 5 artifact cùng commit; macOS/Xcode compile Swift; Apple en
 Năm profile và manifest release set đã có; fingerprint public không ghi giá trị key/URL. Signing local tách play/amazon, configure/compile Gradle không đọc file ký. Native dependency locks là input còn thiếu: production dừng khi chưa có lock được resolve và review trên host phù hợp. Không gọi pipeline tái lập hoàn tất chỉ vì có npm lock.
 
 Scanner history đọc 666 blobs (30 commits gần nhất và objects reachable). Phát hiện chuỗi giống Firebase API key trong **5 blob lịch sử** của `.github/workflows/build-firebase-xctest-ios.yml`, mỗi blob hai dòng. Không dùng key để kiểm online, không in giá trị. Có thể là fixture cũ, chưa đủ chứng cứ gọi key đang hoạt động; chủ dự án cần xác minh, giới hạn API/package/certificate và rotate nếu thật. Source hiện tại không có finding. Không sửa/rewrite lịch sử chia sẻ khi chưa được yêu cầu; kết quả history scan vẫn fail trung thực.
+
+## Checkpoint L2
+
+Guard kiểm DEX definition + init method thay vì tìm string, ELF load segments 16 KB cho ABI64, ZIP alignment, rules chứa exclude database/sharedpref/root/file/external; so inputs nhúng và sidecar; bộ đủ năm artifact. Google phone/Wear phải cùng signer; Amazon được ký riêng theo quyết định store credentials, không ép ba APK cùng chứng chỉ.
+
+Chuỗi dev được phân loại: constants RN/Expo, loopback Spotube hợp lệ, executable fetch/WebSocket route dev. Scanner không phải decompiler Hermes/native; vẫn cần smoke test cold start và kiểm config endpoint. Không cấm mọi localhost. Tests synthetic/mocked kiểm guard, không thay APK/IPA thật.
+
+Nguồn sinh widget settings đã kiểm: expo-widgets 57.0.23 `plugin/build/ios/xcode/addXCConfigurationList.js` áp dụng **SWIFT_OPTIMIZATION_LEVEL=-Onone cho cả Debug và Release**. Final Release modifier đổi -O/wholemodule, ENABLE_DEBUG_DYLIB=NO, ENABLE_PREVIEWS=NO trên mọi target; không xóa dylib khỏi IPA. Chưa có Xcode/IPA để khẳng định đây là producer duy nhất của finding cũ.
