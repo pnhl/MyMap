@@ -17,9 +17,9 @@ Nguồn chung là repo này. `release.json` giữ version 1.0.4, build 38 và ap
 | `MYMAP_STORE` | `play`, `amazon`, `ios`; profile EAS tự đặt |
 | `MYMAP_RELEASE` | `true` cho release; thiếu AdMob app ID thật làm build dừng |
 | `EXPO_PUBLIC_ENABLE_TEST_ADS` | Bắt buộc `false` cho release |
-| `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID`, `EXPO_PUBLIC_ADMOB_IOS_APP_ID` | App ID thật của từng nền tảng; không dùng ID ví dụ Google |
+| `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID`, `EXPO_PUBLIC_ADMOB_IOS_APP_ID` | Ghi đè App ID mặc định trong `config/admob.json`; Android và Amazon dùng chung Android ID |
 | `EXPO_PUBLIC_ADMOB_NATIVE_<PLACEMENT>_ID`, `EXPO_PUBLIC_ADMOB_BANNER_<PLACEMENT>_ID` | Đơn vị quảng cáo Android hiện có |
-| `EXPO_PUBLIC_ADMOB_IOS_NATIVE_<PLACEMENT>_ID`, `EXPO_PUBLIC_ADMOB_IOS_BANNER_<PLACEMENT>_ID` | Đơn vị quảng cáo iOS riêng; để trống sẽ không yêu cầu quảng cáo tại vị trí đó |
+| `EXPO_PUBLIC_ADMOB_IOS_NATIVE_<PLACEMENT>_ID`, `EXPO_PUBLIC_ADMOB_IOS_BANNER_<PLACEMENT>_ID` | Native iOS có ID mặc định riêng trong `config/admob.json`; banner để trống thì không yêu cầu banner |
 | `EAS_PROJECT_ID` | Project UUID cho build và Expo push |
 | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Backend dùng Firebase ID token và RLS |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_REVERSED_CLIENT_ID` | OAuth client/scheme cho Google Sign-In; Fire ẩn phương thức Google |
@@ -30,6 +30,10 @@ Nguồn chung là repo này. `release.json` giữ version 1.0.4, build 38 và ap
 | `EXPO_PUBLIC_AMAZON_APS_APP_ID` | Khởi tạo APS tùy chọn; Fire không dùng AdMob SDK |
 
 PLACEMENT gồm `SMART`, `FRIENDS`, `TIMELINE`, `STATS`, `PROFILE`, `MEMORIES`, `HEATMAP`, `SETTINGS`, `PLACE`. Cấu hình public phải giống nhau ở mọi profile Android để bundle có cùng hash; việc chọn SDK native dùng `MYMAP_STORE`, không dùng biến public khác nhau cho từng cửa hàng.
+
+ID AdMob public đã cập nhật theo ảnh chủ dự án cung cấp trong `config/admob.json`; không cần file `.env` riêng để nhận các ID này. Native dùng chung một ad unit cho các vị trí trên mỗi hệ điều hành; biến môi trường không rỗng có thể ghi đè từng vị trí. Chưa có banner ID nên banner dự phòng vẫn tắt. Test ads mặc định tắt; QA cần thiết bị thử được đăng ký hoặc bản test riêng.
+
+Amazon dùng **full Google Mobile Ads SDK**, hỗ trợ thiết bị không có Google Play theo [Google](https://developers.google.com/admob/android/sdk). Google Sign-In/FCM/Auto vẫn bị loại. Giữ consent trước khi khởi tạo/tải ads, xử lý no-fill và ẩn khi không có quảng cáo; không yêu cầu cài GMS. Các quyền Advertising ID/AdServices vẫn bị loại khỏi Amazon, nên không có quảng cáo cá nhân hóa qua những API này. Cần thử consent và tải native ads trên Fire thật; việc hiển thị còn phụ thuộc inventory và trạng thái xét duyệt AdMob. [Amazon Appstore được AdMob hỗ trợ](https://support.google.com/admob/answer/9989980).
 
 Trong EAS, tạo environment `production`, thêm public configuration đồng nhất và hai biến kiểu **file** `GOOGLE_SERVICES_JSON`, `GOOGLE_SERVICES_PLIST`. File Firebase bị Git ignore nên cần các biến file trên cloud. Token CI `EXPO_TOKEN` chỉ dùng trong secret manager.
 
@@ -80,7 +84,7 @@ Workflow XCTest iOS cũ vẫn được giữ để chạy thủ công, dùng fix
 
 ## Guard sau build
 
-`scripts/verify-artifacts.py` kiểm tra version/build/app ID, quyền theo `config/android-permissions.json`, backup/transfer bị chặn, release không debuggable, test AdMob ID bị từ chối, Amazon không có component FCM/Ads/Auto bắt buộc GMS. APK phải có chữ ký hợp lệ, không dùng certificate debug; khi so sánh Play/Amazon phải cùng certificate và bundle SHA-256. AAB kiểm tra manifest qua bundletool và chữ ký JAR.
+`scripts/verify-artifacts.py` kiểm tra version/build/app ID, quyền theo `config/android-permissions.json`, backup/transfer bị chặn, release không debuggable, test AdMob ID bị từ chối, Amazon không có component FCM/Auto bắt buộc GMS. Cả Play và Amazon phải có AdMob application ID; provider khởi tạo Mobile Ads được phép trên Amazon. APK phải có chữ ký hợp lệ, không dùng certificate debug; khi so sánh Play/Amazon phải cùng certificate và bundle SHA-256. AAB kiểm tra manifest qua bundletool và chữ ký JAR.
 
 iOS kiểm tra mô tả quyền tiếng Việt, background modes đúng `location/audio/processing`, version của widget/Watch, không có debug/preview dylib và các endpoint Metro đã biết. IPA signed cần provisioning; trên macOS kiểm thêm `codesign --verify --deep --strict` và distribution profile. Báo cáo chạy ngoài macOS không được hiểu là đã xác minh codesign. Kết quả ghi `dist/releases/verification.json`.
 

@@ -6,14 +6,15 @@ import {loadEnvFile} from 'node:process';
 // variables retain precedence; this reads the ignored local file silently.
 if(existsSync('./.env'))loadEnvFile('./.env');
 const release = JSON.parse(readFileSync('./release.json', 'utf8'));
+const adMobDefaults = JSON.parse(readFileSync('./config/admob.json', 'utf8'));
 const TEST_ANDROID = 'ca-app-pub-3940256099942544~3347511713';
 const TEST_IOS = 'ca-app-pub-3940256099942544~1458002511';
 export default ({config}: ConfigContext): ExpoConfig => {
  const store = process.env.MYMAP_STORE || 'development', production = process.env.MYMAP_RELEASE === 'true', amazon = store === 'amazon';
- const iosAds = process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID, androidAds = process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID;
+ const iosAds = process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID?.trim() || adMobDefaults.ios.appId, androidAds = process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID?.trim() || adMobDefaults.android.appId;
  if(production && process.env.EXPO_PUBLIC_ENABLE_TEST_ADS === 'true')throw Error('Release must disable test ads.');
- const adId = store === 'ios' ? iosAds : store === 'play' ? androidAds : undefined;
- if(production && !amazon && (!adId || adId.includes('3940256099942544') || !/^ca-app-pub-\d{16}~\d{10}$/.test(adId)))throw Error('Set the real AdMob application ID for this release platform.');
+ const adId = store === 'ios' ? iosAds : store === 'play' || amazon ? androidAds : undefined;
+ if(production && (!adId || adId.includes('3940256099942544') || !/^ca-app-pub-\d{16}~\d{10}$/.test(adId)))throw Error('Set the real AdMob application ID for this release platform.');
  const schemes = Array.isArray(config.scheme)?config.scheme:config.scheme?[config.scheme]:[];
  const managed=['react-native-google-mobile-ads','@react-native-firebase/app','@react-native-firebase/auth','expo-apple-authentication','expo-build-properties','expo-widgets','./plugins/withMyMapAndroid.ts'];
  const plugins=(config.plugins||[]).filter(p=>!managed.includes((Array.isArray(p)?p[0]:p)||''));
@@ -46,7 +47,7 @@ export default ({config}: ConfigContext): ExpoConfig => {
    './plugins/withMyMapAndroid.ts','./plugins/with-release-security.cjs',
    ['./plugins/with-ios-companions.cjs',{watch:process.env.MYMAP_ENABLE_WATCH!=='false',carPlay:process.env.MYMAP_ENABLE_CARPLAY==='true'}],
    ...(widgets?[['expo-widgets',{groupIdentifier:'group.com.pnhl.vibecoding',widgets:[{name:'MyMapMomentWidget',displayName:'Khoảnh khắc MyMap',description:'Khoảnh khắc bạn đã chọn chia sẻ.',ios:{supportedFamilies:['systemSmall','systemMedium']}}]}] as any]:[]),
-   ...(!amazon?[['react-native-google-mobile-ads',{androidAppId:androidAds||TEST_ANDROID,iosAppId:iosAds||TEST_IOS}]] as any:[]),
+   ['react-native-google-mobile-ads',{androidAppId:androidAds||TEST_ANDROID,iosAppId:iosAds||TEST_IOS}],
   ],
  };
 };

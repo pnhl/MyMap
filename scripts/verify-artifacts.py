@@ -33,11 +33,10 @@ def apk(path, store):
     require(not permissions - allowed, 'Unexpected permissions: ' + ', '.join(sorted(permissions - allowed)))
     require('3940256099942544~' not in tree, 'Google sample AdMob app ID in release')
     if store == 'amazon':
-        for component in ['RNGoogleSignin', 'GoogleMobileAdsInitProvider', 'ExpoFirebaseMessagingService', 'FirebaseMessagingService', 'FirebaseInstanceIdReceiver', 'MyMapCarService']:
+        for component in ['RNGoogleSignin', 'ExpoFirebaseMessagingService', 'FirebaseMessagingService', 'FirebaseInstanceIdReceiver', 'MyMapCarService']:
             require(component not in tree, 'Amazon contains Google-only component: ' + component)
         require(not any('car.app' in p or 'aicore' in p.lower() or 'AD_ID' in p for p in permissions), 'Amazon Google-only permissions')
-    else:
-        require('com.google.android.gms.ads.APPLICATION_ID' in tree, 'Google release lacks AdMob application ID')
+    require('com.google.android.gms.ads.APPLICATION_ID' in tree, 'Android release lacks AdMob application ID')
     signature = command([android_tool('apksigner'), 'verify', '--verbose', '--print-certs', str(path)])
     require('CN=Android Debug' not in signature, 'APK uses the Android debug signing certificate')
     cert = re.search(r'Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]+)', signature)

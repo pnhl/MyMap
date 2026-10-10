@@ -48,7 +48,7 @@
 | Video recap/chia sẻ | Native AVFoundation adapter | Media3 native | Media3 native | `MyMapMomentsModule.swift`, `moments.ts` |
 | Nhạc/audio nền | Có | Có | Có | `musicPlayback.ts`; background audio dùng thật |
 | Spotube localhost | Không có native launcher Android, E5 | Có nếu cài Spotube | Nếu cài Spotube | Loopback chức năng giữ lại; không xóa nhầm thành chuỗi Metro |
-| Quảng cáo | AdMob IDs iOS riêng | AdMob IDs Android riêng | Ẩn AdMob, E7 | Consent lazy; Google SDK không autolink Fire; APS init tùy chọn chưa có UI demand riêng |
+| Quảng cáo | AdMob IDs iOS riêng | AdMob IDs Android | Cùng AdMob IDs Android | Full Mobile Ads SDK hỗ trợ không có Google Play; consent/no-fill chung, không thêm quyền Advertising ID cho Fire; cần device QA |
 
 ## Ngoại lệ và cấu hình cần xác nhận
 
@@ -60,7 +60,7 @@
 | E4 | Phone OTP Fire chưa nghiệm thu | Firebase reCAPTCHA/provider phải thử thiết bị và cấu hình nhà cung cấp; email/password cùng UID đã có | Chờ QA |
 | E5 | Surface/provider riêng nền tảng | Game Center, Nano, Android Auto, Watch/Wear, tile, giọng nói, Spotube tùy OS/phần cứng; có lựa chọn chung trong app | Chờ duyệt không áp dụng |
 | E6 | CarPlay chưa bật mặc định | Apple phải cấp `com.apple.developer.carplay-maps`; chỉ bật khi provisioning phù hợp | Chờ entitlement chủ dự án |
-| E7 | Không hiển thị quảng cáo Fire | AdMob đã loại, tránh startup crash không GMS; APS SDK có nhưng chưa giả lập rằng có inventory/UI ads độc lập | Chờ duyệt bản không quảng cáo hoặc cấu hình APS đầy đủ |
+| E7 | Trước đây loại AdMob khỏi Fire | Đã sửa theo yêu cầu chủ dự án: bật full Mobile Ads SDK và ID Android trên Amazon; SDK hỗ trợ không có Google Play, giữ consent và không thêm quyền Advertising ID | Đã xử lý trong mã; chờ QA Fire/inventory thật |
 
 Watch target mặc định bật; phải ký app Watch cùng cấu hình Apple phù hợp. Wear APK đã biên dịch, nhưng luồng Data Layer trên hai thiết bị chưa kiểm. Không coi có APK là đã gửi SOS thành công trên đồng hồ.
 

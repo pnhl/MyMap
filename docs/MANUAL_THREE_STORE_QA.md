@@ -45,7 +45,7 @@ Không gọi số khẩn cấp thật để thử. Kiểm tra màn hình dialer 
 | App lock: sinh trắc/device passcode, cancel, sai credential, resume từ nền | | | |
 | Không passcode: không bật khóa giả; không khóa người dùng vĩnh viễn | | | |
 | AdMob: real app/unit IDs đúng OS, consent, no-fill không vòng request vô hạn | | | |
-| Fire: mở Settings/ads/privacy/login không require SDK Google đã bị loại | | | |
+| Fire không GMS: mở Settings/ads/privacy/login; AdMob consent/load/no-fill hoạt động, Google Sign-In vẫn ẩn | | | |
 | GGUF: model đúng/hash đúng/64 bit/RAM đủ; model lỗi báo và không mất dữ liệu | | | |
 | AI hệ thống không có: chọn GGUF; không báo Nano/Apple Intelligence đã hoạt động | | | |
 | OCR/nhãn ảnh không GMS: bundled model hoạt động hoặc lỗi có thể xử lý | | | |

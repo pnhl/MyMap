@@ -1,4 +1,5 @@
 import importlib.util, pathlib, plistlib, tempfile, unittest, zipfile
+from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('verify',pathlib.Path(__file__).resolve().parent.parent/'scripts/verify-artifacts.py');verify=importlib.util.module_from_spec(spec);spec.loader.exec_module(verify)
 class IpaValidation(unittest.TestCase):
     def fixture(self,changes=None,extra=None):
@@ -22,4 +23,22 @@ class IpaValidation(unittest.TestCase):
         extension={'CFBundleShortVersionString':verify.RELEASE['version'],'CFBundleVersion':'23'}
         with self.assertRaisesRegex(ValueError,'target version'):verify.ipa(self.fixture(extra={'Payload/MyMap.app/PlugIns/Widget.appex/Info.plist':plistlib.dumps(extension)}),True)
         with self.assertRaisesRegex(ValueError,'Development endpoint'):verify.ipa(self.fixture(extra={'Payload/MyMap.app/main.jsbundle':b'http://localhost:8081'}),True)
+class AmazonAdMobValidation(unittest.TestCase):
+    def validate(self, extra='', app_id=True):
+        folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup);apk=pathlib.Path(folder.name)/'amazon.apk'
+        with zipfile.ZipFile(apk,'w') as archive:archive.writestr('assets/index.android.bundle',b'shared-bundle')
+        badging=f"package: name='{verify.RELEASE['applicationId']}' versionCode='{verify.RELEASE['build']}' versionName='{verify.RELEASE['version']}'"
+        manifest='android:allowBackup=false android:dataExtractionRules GoogleMobileAdsInitProvider '+extra
+        if app_id:manifest+=' com.google.android.gms.ads.APPLICATION_ID ca-app-pub-9161074667002246~7998118867'
+        def command(args):
+            if args[0]=='apksigner':return 'Signer #1 certificate SHA-256 digest: '+'a'*64
+            return badging if 'badging' in args else manifest
+        with patch.object(verify,'android_tool',side_effect=lambda name:name),patch.object(verify,'command',side_effect=command):
+            return verify.apk(apk,'amazon')
+    def test_amazon_allows_full_mobile_ads_provider(self):
+        self.assertEqual(self.validate()['store'],'amazon')
+    def test_amazon_still_rejects_fcm_and_missing_ads_configuration(self):
+        with self.assertRaisesRegex(ValueError,'Google-only component'):self.validate('FirebaseMessagingService')
+        with self.assertRaisesRegex(ValueError,'AdMob application ID'):self.validate(app_id=False)
+
 if __name__=='__main__':unittest.main()
