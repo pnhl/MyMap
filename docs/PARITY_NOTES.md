@@ -62,3 +62,5 @@ EAS Android dùng JSON ký private riêng từng store, staging credentials.json
 CI Linux đầu tiên qua checks nhưng setup-android v3 mặc định yêu cầu package `tools` đã bị repository Google loại bỏ. Workflow chỉ định platform-tools, platforms;android-36 và build-tools;36.0.0, không dùng SDK tools cũ; lỗi xảy ra trước compile, không coi đây là kết quả native.
 
 Linux fresh resolution phát hiện metadata guava-parent 33.3.1-jre POM và junit-bom 5.10.2 module thiếu ở Play/Wear trong khi đã có checksum trong capture Fire. Đã tải đúng artifact từ Maven Central, đối chiếu trùng hash capture và bổ sung entries; public origins/hashes trong config/native-locks/maven-origins.json. Giữ strict verification, không dùng --write-verification-metadata trong CI.
+
+Lượt tiếp theo đọc thêm junit-bom 5.9.2/5.9.3 module, groovy 3.0.22 POM và kotlin-bom 1.8.0 POM. Cả sáu metadata origin đã đối chiếu bytes Maven Central với cache/capture có sẵn, không lấy hash từ log CI. Maintenance capture phải dùng --refresh-dependencies để cache không che metadata; production vẫn strict và không tự cập nhật allowlist.
