@@ -74,7 +74,9 @@ Workflow `.github/workflows/release.yml` chạy lint, typecheck, test và scan c
 
 Các GitHub secrets cần đặt: `MYMAP_PUBLIC_ENV` (nội dung cấu hình public đồng nhất), `FIREBASE_ANDROID_BASE64`, `FIREBASE_IOS_PLIST_BASE64`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `EXPO_TOKEN`. Không bật shell tracing. EAS production environment vẫn cần các biến file Firebase và đúng EAS project.
 
-Chưa liên kết Git remote hoặc cấu hình GitHub/EAS secrets trong phiên này. Workflow đã có mã nhưng chưa có run cloud thành công.
+Git remote là [pnhl/MyMap](https://github.com/pnhl/MyMap), nhánh chính `main`. Chưa cấu hình GitHub/EAS secrets trong phiên này. Workflow build bản ký chỉ chạy thủ công sau khi có đủ cấu hình; kết quả CI của từng commit xem trong tab Actions.
+
+Workflow XCTest iOS cũ vẫn được giữ để chạy thủ công, dùng fixture Firebase không có thông tin thật. Workflow bootstrap tải nguồn bên ngoài và ghi đè repository đã được gỡ. Cấu hình Expo duy nhất là `app.config.ts`; không giữ `app.config.js` cũ vì nó che khuất cấu hình mới.
 
 ## Guard sau build
 

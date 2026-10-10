@@ -42,7 +42,10 @@ if [[ ! -d "$DEVICE_PRODUCTS" ]]; then
   exit 1
 fi
 
-mapfile -t XCTESTRUN_FILES < <(find "$PRODUCTS_DIR" -maxdepth 1 -type f -name '*.xctestrun' -print)
+XCTESTRUN_FILES=()
+while IFS= read -r -d '' xctestrun; do
+  XCTESTRUN_FILES+=("$xctestrun")
+done < <(find "$PRODUCTS_DIR" -maxdepth 1 -type f -name '*.xctestrun' -print0)
 if [[ ${#XCTESTRUN_FILES[@]} -ne 1 ]]; then
   echo "Expected exactly one .xctestrun file in $PRODUCTS_DIR; found ${#XCTESTRUN_FILES[@]}." >&2
   printf '  %s\n' "${XCTESTRUN_FILES[@]:-none}" >&2
@@ -59,4 +62,5 @@ rm -f "$OUTPUT_ZIP"
     "$(basename "${XCTESTRUN_FILES[0]}")"
 )
 
+shasum -a 256 "$OUTPUT_ZIP" > "$OUTPUT_ZIP.sha256"
 echo "Firebase Test Lab XCTest package created: $OUTPUT_ZIP"

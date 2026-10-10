@@ -2,6 +2,8 @@
 
 MyMap is a privacy-first, local-first Android/iOS life map built with Expo + React Native, Firebase Authentication and Supabase data services.
 
+The current shared source targets Google Play, Amazon Fire and iOS at version **1.0.4 (build 38)**. See [BUILD.md](BUILD.md) for build/signing setup, [the implementation matrix](docs/THREE_STORE_IMPLEMENTATION.md) for platform capabilities and remaining exceptions, and [device QA](docs/MANUAL_THREE_STORE_QA.md) before publishing. Signed phone release artifacts still require CI credentials and device validation.
+
 ## v0.6 architecture
 
 MyMap now uses a real multi-screen navigation architecture with a shared responsive glassmorphism design system.
