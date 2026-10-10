@@ -210,7 +210,7 @@ const NETWORK_SECURITY_SOURCE = `<?xml version="1.0" encoding="utf-8"?>
 `;
 
 const withMyMapAndroid: ConfigPlugin = config => {
-  config=withGradleProperties(config,mod=>{mod.modResults=mod.modResults.filter(item=>item.type!=='property'||!['android.kotlinVersion','expo.enableCompileTimeOptimization'].includes(item.key));mod.modResults.push({type:'property',key:'android.kotlinVersion',value:'2.3.20'});return mod;});
+  config=withGradleProperties(config,mod=>{mod.modResults=mod.modResults.filter(item=>item.type!=='property'||!['android.kotlinVersion','expo.enableCompileTimeOptimization','org.gradle.jvmargs','kotlin.daemon.jvmargs'].includes(item.key));mod.modResults.push({type:'property',key:'android.kotlinVersion',value:'2.3.20'},{type:'property',key:'org.gradle.jvmargs',value:'-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8'},{type:'property',key:'kotlin.daemon.jvmargs',value:'-Xmx1024m'});return mod;});
   config=withProjectBuildGradle(config,mod=>{mod.modResults.contents=mod.modResults.contents.replace(/classpath\('org.jetbrains.kotlin:kotlin-gradle-plugin(?::[^']+)?'\)/,"classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.20')");return mod;});
   config = withAndroidManifest(config, mod => {
     const manifest = mod.modResults.manifest;
@@ -338,6 +338,7 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
       source = source.replace('dependencies {', 'dependencies {\n    googleImplementation("com.google.android.gms:play-services-wearable:20.0.1")\n    googleImplementation("androidx.car.app:app:1.7.0")\n    googleImplementation("androidx.car.app:app-projected:1.7.0")\n    googleImplementation("org.maplibre.gl:android-sdk-opengl:13.6.1")\n    amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")');
     }
     if (!source.includes('MyMap dependency lock contract')) source += '\n// MyMap dependency lock contract\ndependencyLocking { lockAllConfigurations() }\n';
+    if (!source.includes('CMAKE_OBJECT_PATH_MAX')) source += '\n// Keep CXX staging and hashed codegen paths below Windows Ninja MAX_PATH.\nandroid { if (System.getProperty("os.name").toLowerCase().contains("windows")) { externalNativeBuild { cmake { buildStagingDirectory new File(System.getProperty("java.io.tmpdir"), "mymap-cxx-" + Integer.toHexString(rootProject.projectDir.canonicalPath.hashCode())) } }; defaultConfig { externalNativeBuild { cmake { arguments "-DCMAKE_OBJECT_PATH_MAX=240" } } } } }\n';
     mod.modResults.contents = source;
     return mod;
   });
