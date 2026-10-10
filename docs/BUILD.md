@@ -4,7 +4,7 @@ Nguồn version: `release.json`, hiện 1.0.4/build 38. `node scripts/bump-relea
 
 ## Trạng thái
 
-Pipeline và gates đã có code; **chưa có release set năm artifact của commit mới**. Gradle locks/checksums từng store/Wear đã resolve và compile strict trên fixture Windows; Fire unsigned Release R8/16KB đạt. Google full release/host Linux cần kiểm tiếp. Podfile.lock còn thiếu, production iOS cố ý dừng. Không dùng credential thật, triển khai backend hay upload store trong lượt này.
+Pipeline và gates đã có code; **chưa có release set năm artifact của commit mới**. Gradle locks/checksums từng store/Wear đã resolve và compile strict trên fixture Windows; hai APK và Google AAB unsigned Release R8/16KB đạt. Production signing/ABI khác cần kiểm tiếp. Podfile.lock còn thiếu, production iOS cố ý dừng. Không dùng credential thật, triển khai backend hay upload store trong lượt này.
 
 ## Toolchain và inputs
 

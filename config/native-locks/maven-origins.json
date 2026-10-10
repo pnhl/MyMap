@@ -48,6 +48,14 @@
       "artifact": "kotlin-bom-1.8.0.pom",
       "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-bom/1.8.0/kotlin-bom-1.8.0.pom",
       "sha256": "681f9878548c0a149c678092fd8b1f4cc7c5c41ba1b24397101c1073a6c76dda"
+    },
+    {
+      "group": "org.codehaus.groovy",
+      "name": "groovy",
+      "version": "3.0.22",
+      "artifact": "groovy-3.0.22.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/codehaus/groovy/groovy/3.0.22/groovy-3.0.22.jar",
+      "sha256": "c92c92c4b9b183f9981ba7399f36592e5e3ad6f4cdac7101b5a22cc17998d13f"
     }
   ]
 }

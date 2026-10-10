@@ -1,0 +1,66 @@
+{
+  "scope": "Credential-free working-source fixtures before final commit; not release provenance, signatures or device validation",
+  "version": "1.0.4",
+  "build": 38,
+  "artifacts": {
+    "play": {
+      "fixture": true,
+      "releaseEligible": false,
+      "signatureVerified": false,
+      "apkSha256": "065572bc8d88869a189f4804d6cd61f34fb0d8cfd56e86792010e99fb2073d0c",
+      "jsSha256": "f7837f889cb10ef16156596ca9e79049ff61118de9bc3b91fe692eae74982070",
+      "hermes": true,
+      "startup": [
+        "Lexpo/modules/adapters/react/apploader/RNHeadlessAppLoader;",
+        "Llivekit/org/jni_zero/JniInit;"
+      ],
+      "abis": [
+        "arm64-v8a"
+      ],
+      "devStrings": {
+        "scannedFiles": 1890,
+        "frameworkConstants": 7,
+        "spotubeLoopback": 21,
+        "executableDevRoutes": 0
+      },
+      "zip16kbVerified": true
+    },
+    "amazon": {
+      "fixture": true,
+      "releaseEligible": false,
+      "signatureVerified": false,
+      "apkSha256": "9f6a3902fd2d1100abd172b077e48c5008fdc7227965996dc89e926a4171411d",
+      "jsSha256": "f7837f889cb10ef16156596ca9e79049ff61118de9bc3b91fe692eae74982070",
+      "hermes": true,
+      "startup": [
+        "Lexpo/modules/adapters/react/apploader/RNHeadlessAppLoader;",
+        "Llivekit/org/jni_zero/JniInit;"
+      ],
+      "abis": [
+        "arm64-v8a"
+      ],
+      "devStrings": {
+        "scannedFiles": 1556,
+        "frameworkConstants": 7,
+        "spotubeLoopback": 21,
+        "executableDevRoutes": 0
+      },
+      "zip16kbVerified": true
+    },
+    "aab": {
+      "fixture": true,
+      "releaseEligible": false,
+      "signatureVerified": false,
+      "sha256": "21934a77634e8c449ad2925a2de853cb41c3b4778a18524ffb361e7044b0bf36",
+      "jsSha256": "f7837f889cb10ef16156596ca9e79049ff61118de9bc3b91fe692eae74982070",
+      "startup": [
+        "Lexpo/modules/adapters/react/apploader/RNHeadlessAppLoader;",
+        "Llivekit/org/jni_zero/JniInit;"
+      ],
+      "abis": [
+        "arm64-v8a"
+      ],
+      "pageAlignmentConfig": "PAGE_ALIGNMENT_16K"
+    }
+  }
+}
