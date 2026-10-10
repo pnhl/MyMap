@@ -16,31 +16,47 @@ import org.json.JSONObject
 
 /** System GPS recorder/fallback: SQLite, with no GMS or JS lifecycle dependency. */
 class PlatformTrackingService:Service(),LocationListener{
- companion object {@Volatile var running=false}
+ companion object {
+  @Volatile var running=false
+  fun notification(context:Context):Notification {
+   val prefs=context.getSharedPreferences("mymap_travel",Context.MODE_PRIVATE)
+   val snapshot=runCatching{JSONObject(prefs.getString("tracking_snapshot","{}")!!)}.getOrDefault(JSONObject())
+   val launch=PendingIntent.getActivity(context,2201,context.packageManager.getLaunchIntentForPackage(context.packageName),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+   fun shortcut(url:String,id:Int)=PendingIntent.getActivity(context,id,Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)).setPackage(context.packageName),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+   return NotificationCompat.Builder(context,"mymap_platform_tracking").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle(if(snapshot.optBoolean("enabled"))"MyMap đang ghi hành trình" else "MyMap · Hành trình đã dừng")
+    .setContentText(snapshot.optString("error").takeIf{it.isNotBlank()&&it!="null"}?:"Vị trí được lưu riêng tư trên thiết bị của bạn.").setContentIntent(launch).setOngoing(snapshot.optBoolean("enabled"))
+    .addAction(android.R.drawable.ic_menu_mylocation,"Ghi hành trình",shortcut("mymap://smart",2202))
+    .addAction(android.R.drawable.ic_menu_camera,"Chụp nhanh",shortcut("mymap://camera",2203))
+    .addAction(android.R.drawable.ic_dialog_alert,"SOS",shortcut("mymap://sos",2204)).build()
+  }
+  fun refreshNotification(context:Context){if(running)(context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(2201,notification(context))}
+ }
  private lateinit var locations:LocationManager
  private val prefs get()=getSharedPreferences("mymap_travel",MODE_PRIVATE)
  private val worker=HandlerThread("MyMapGPS")
  private lateinit var writes:Handler
  private val pendingLock=Any()
  private val drain=Runnable {drainPending()}
+ private fun publish(enabled:Boolean,error:String?=null){
+  val snapshot=runCatching{JSONObject(prefs.getString("tracking_snapshot","{}")!!)}.getOrDefault(JSONObject())
+  snapshot.put("schema",1).put("enabled",enabled).put("mode",if(enabled)"background" else "off").put("updatedAt",System.currentTimeMillis()).put("error",error?:JSONObject.NULL)
+  if(!snapshot.has("owner"))snapshot.put("owner",JSONObject.NULL)
+  prefs.edit().putString("tracking_snapshot",snapshot.toString()).apply();refreshNotification(this)
+ }
  override fun onBind(intent:Intent?):IBinder?=null
  override fun onCreate(){super.onCreate();locations=getSystemService(LOCATION_SERVICE) as LocationManager;worker.start();writes=Handler(worker.looper)}
  @SuppressLint("MissingPermission")
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int{
-  if(!prefs.getBoolean("platform_tracking",false)||ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){stopSelf();return START_NOT_STICKY}
+  if(!prefs.getBoolean("platform_tracking",false)||ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){publish(false,"Quyền vị trí đã bị thu hồi hoặc ghi hành trình đã tắt.");prefs.edit().putBoolean("platform_tracking",false).apply();stopSelf();return START_NOT_STICKY}
   if(Build.VERSION.SDK_INT>=26)(getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(NotificationChannel("mymap_platform_tracking","MyMap · Hành trình",NotificationManager.IMPORTANCE_LOW))
-  val launch=PendingIntent.getActivity(this,2201,packageManager.getLaunchIntentForPackage(packageName),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  fun shortcut(url:String,id:Int)=PendingIntent.getActivity(this,id,Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)).setPackage(packageName),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  startForeground(2201,NotificationCompat.Builder(this,"mymap_platform_tracking").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("MyMap đang ghi hành trình").setContentText("Vị trí được lưu riêng tư trên thiết bị của bạn.").setContentIntent(launch).setOngoing(true)
-   .addAction(android.R.drawable.ic_menu_mylocation,"Ghi hành trình",shortcut("mymap://smart",2202))
-   .addAction(android.R.drawable.ic_menu_camera,"Chụp nhanh",shortcut("mymap://camera",2203))
-   .addAction(android.R.drawable.ic_dialog_alert,"SOS",shortcut("mymap://sos",2204)).build())
+  publish(true)
+  try{startForeground(2201,notification(this))}catch(e:Exception){publish(false,"Hệ thống từ chối ghi vị trí nền.");prefs.edit().putBoolean("platform_tracking",false).putString("platform_error",e.message).apply();stopSelf();return START_NOT_STICKY}
   val interval=prefs.getLong("platform_interval",5000);val distance=prefs.getFloat("platform_distance",5f)
   val providers=listOf(LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER).filter {runCatching{locations.isProviderEnabled(it)}.getOrDefault(false)}
   locations.removeUpdates(this)
-  if(providers.isEmpty()){prefs.edit().putString("platform_error","Không có nguồn GPS hoặc vị trí mạng đang bật.").putBoolean("platform_tracking",false).apply();stopSelf();return START_NOT_STICKY}
+  if(providers.isEmpty()){publish(false,"Không có nguồn GPS hoặc vị trí mạng đang bật.");prefs.edit().putString("platform_error","Không có nguồn GPS hoặc vị trí mạng đang bật.").putBoolean("platform_tracking",false).apply();stopSelf();return START_NOT_STICKY}
   try {providers.forEach{locations.requestLocationUpdates(it,interval,distance,this,Looper.getMainLooper())};running=true;prefs.edit().remove("platform_error").apply()}
-  catch(e:Exception){prefs.edit().putString("platform_error",e.message).putBoolean("platform_tracking",false).apply();stopSelf();return START_NOT_STICKY}
+  catch(e:Exception){publish(false,"Không thể tiếp tục ghi GPS. Kiểm tra quyền vị trí.");prefs.edit().putString("platform_error",e.message).putBoolean("platform_tracking",false).apply();stopSelf();return START_NOT_STICKY}
   writes.post(drain)
   return START_STICKY
  }
@@ -48,6 +64,7 @@ class PlatformTrackingService:Service(),LocationListener{
   if(!prefs.getBoolean("platform_tracking",false))return
   val p=Location(location)
   if(!p.latitude.isFinite()||!p.longitude.isFinite()||p.latitude !in -90.0..90.0||p.longitude !in -180.0..180.0||p.accuracy>120||p.accuracy<0)return
+  PlaceRegionRecorder.evaluate(this,p)
   // Commit before dispatching to the writer so process death cannot lose an accepted fix.
   synchronized(pendingLock){
    val pending=readPending()
@@ -99,7 +116,7 @@ class PlatformTrackingService:Service(),LocationListener{
  override fun onProviderDisabled(provider:String){
   val available=listOf(LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER).any{runCatching{locations.isProviderEnabled(it)}.getOrDefault(false)}
   if(available)prefs.edit().remove("platform_error").apply()
-  else prefs.edit().putString("platform_error","GPS/Location đang tắt.").apply()
+  else {publish(true,"GPS/Location đang tắt.");prefs.edit().putString("platform_error","GPS/Location đang tắt.").apply()}
  }
  override fun onDestroy(){running=false;locations.removeUpdates(this);worker.quitSafely();super.onDestroy()}
 }

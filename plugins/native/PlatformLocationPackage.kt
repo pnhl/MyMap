@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class PlatformLocationPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
-    listOf(PlatformLocationModule(reactContext), TravelPlatformModule(reactContext), MomentPlatformModule(reactContext))
+    listOf(PlatformLocationModule(reactContext), TravelPlatformModule(reactContext), MomentPlatformModule(reactContext), MyMapPushModule(reactContext))
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
     emptyList()

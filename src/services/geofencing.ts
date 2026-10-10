@@ -8,6 +8,7 @@ import {isAmazonLocationDevice,watchDevicePosition} from './platformLocation';
 import {getCurrentUser,subscribeAuthState} from './auth';
 import {notifyWearDevice} from './nativeSafety';
 import {companionGeofenceHaptic} from './iosCompanions';
+import {travelNative} from './travelPlatform';
 
 export const GEOFENCE_TASK_NAME = 'mymap-place-geofence-v1';
 
@@ -30,11 +31,13 @@ export function distanceToRegion(lat:number,lon:number,region:PlaceAlert){
 }
 async function startFireRegions(owner:string,regions:PlaceAlert[]){
  fireWatcher?.remove();fireWatcher=null;const generation=++fireGeneration;
+ await travelNative?.configurePlaceRegions?.(JSON.stringify({owner,regions}));
  if(!regions.length)return;
  const states=new Map<string,boolean>();let queue=Promise.resolve();
  const watcher=await watchDevicePosition({accuracy:Location.Accuracy.High,distanceInterval:20,timeInterval:10000},point=>{
   queue=queue.catch(()=>{}).then(async()=>{
    if(generation!==fireGeneration||AppState.currentState!=='active'||(await getCurrentUser())?.id!==owner)return;
+   if(await travelNative?.isPlatformTracking())return; // Native recorder owns transitions while running.
    for(const region of regions){
     const radius=Math.max(50,Math.min(region.radius_m,5000)),distance=distanceToRegion(point.coords.latitude,point.coords.longitude,region),uncertainty=Math.max(25,point.coords.accuracy||0);
     if(Math.abs(distance-radius)<=uncertainty)continue;
@@ -50,9 +53,15 @@ async function startFireRegions(owner:string,regions:PlaceAlert[]){
 }
 export function startFireGeofenceFallback(){
  let alive=true;
- const restore=async()=>{if(!alive||!await isAmazonLocationDevice())return;const owner=(await getCurrentUser())?.id;const raw=await AsyncStorage.getItem(FIRE_REGIONS_KEY);if(!raw)return;const saved=JSON.parse(raw);if(saved.owner===owner)await startFireRegions(owner!,saved.regions);};
+ const restore=async()=>{if(!alive||!await isAmazonLocationDevice())return;const owner=(await getCurrentUser())?.id;const raw=await AsyncStorage.getItem(FIRE_REGIONS_KEY);if(!raw||!owner){await travelNative?.configurePlaceRegions?.(null);return;}const saved=JSON.parse(raw);if(saved.owner===owner)await startFireRegions(owner,saved.regions);else await travelNative?.configurePlaceRegions?.(null);};
  void restore().catch(()=>{});const auth=subscribeAuthState(()=>{fireGeneration++;fireWatcher?.remove();fireWatcher=null;void restore().catch(()=>{});});
- return()=>{alive=false;fireGeneration++;fireWatcher?.remove();fireWatcher=null;auth();};
+ let flushing=false;
+ const flush=async()=>{if(!alive||flushing||AppState.currentState!=='active'||!await isAmazonLocationDevice())return;flushing=true;try{
+  const events=JSON.parse(await travelNative?.pendingPlaceEvents?.()||'[]') as {id:string;owner:string;alertId:string;type:string;lat:number;lon:number}[];
+  for(const event of events){if(!alive||(await getCurrentUser())?.id!==event.owner)return;const {error}=await supabase.rpc('vc_record_place_alert_event',{p_alert_id:event.alertId,p_event_type:event.type,p_lat:event.lat,p_lon:event.lon});if(error)throw error;await travelNative?.acknowledgePlaceEvent?.(event.id);}
+ }finally{flushing=false;}};
+ const timer=setInterval(()=>void flush().catch(()=>{}),15000),app=AppState.addEventListener('change',s=>{if(s==='active'){void restore().catch(()=>{});void flush().catch(()=>{});}});void flush().catch(()=>{});
+ return()=>{alive=false;fireGeneration++;fireWatcher?.remove();fireWatcher=null;auth();clearInterval(timer);app.remove();};
 }
 
 type GeofenceTaskEvent = {
@@ -141,7 +150,7 @@ export async function syncGeofences() {
 
 export async function stopGeofences() {
   fireGeneration++;fireWatcher?.remove();fireWatcher=null;await AsyncStorage.removeItem(FIRE_REGIONS_KEY);
-  if(await isAmazonLocationDevice())return;
+  if(await isAmazonLocationDevice()){await travelNative?.configurePlaceRegions?.(null);return;}
   if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME)) {
     await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
   }

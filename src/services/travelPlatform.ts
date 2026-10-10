@@ -2,6 +2,10 @@ import {NativeModules, Platform} from 'react-native';
 import {travelNative as iosTravel} from './iosTravel';
 type SafetyState = {enabled: boolean; pendingAt: number; deadline: number; heightMeters: number; kind: string; emergencyNumber: string};
 type TravelNative = {
+ configurePlaceRegions?(json:string|null):Promise<boolean>;
+ pendingPlaceEvents?():Promise<string>;
+ acknowledgePlaceEvent?(id:string):Promise<boolean>;
+ updateTrackingSnapshot?(json:string):void;
  consumeTrackingShortcut?():Promise<string|null>;
  setTrackingIndicator?(enabled:boolean):void;
  getSpotubeInstallation(): Promise<{installed: boolean; packageName?: string}>;

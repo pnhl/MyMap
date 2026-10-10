@@ -1,5 +1,7 @@
 import Native from '../../modules/my-map-capabilities';
 export function capabilitiesAvailable() { return !!Native; }
+export function runtimeCapabilities(){return Native?.runtimeCapabilities?.()||null;}
+export function deviceCredentialAvailable(){try{return runtimeCapabilities()?.deviceCredential===true;}catch{return false;}}
 export async function authenticateDevice(reason = 'Mở dữ liệu riêng tư của MyMap') {
   if (!Native) throw new Error('Cần bản build có module bảo mật MyMap.');
   return Native.authenticate(reason);

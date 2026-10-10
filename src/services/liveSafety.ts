@@ -126,7 +126,8 @@ export async function triggerSos(input: {
   try {
     const { data, error } = await invokeEdgeFunctionWithFallback('mymap-sos', 'vibecoding-sos', { body: input });
     if (error) throw error;
-    return data as SosResult;
+    // Server persistence confirms acceptance, never the recipient's receipt.
+    return {...data,delivery:'accepted'} as SosResult;
   } catch (err) {
     // If offline or network error, enqueue to offline SOS queue in SQLite
     const queueId = await enqueueOfflineSos({
@@ -143,6 +144,7 @@ export async function triggerSos(input: {
     return {
       ok: true,
       event_id: `offline-sos-${queueId}`,
+      delivery:'queued',
       emergency_number: '115',
       dial_requires_user_confirmation: true,
       contacts: cachedContacts.map(c => ({ id: c.id, name: c.name, phone_e164: c.phone_e164 })),
@@ -179,8 +181,10 @@ export async function syncPendingSosEvents(): Promise<number> {
 }
 
 export async function openEmergencyDialer(phoneNumber: string) {
-  if (travelNative) {await travelNative.openDialer(phoneNumber);return;}
-  await Linking.openURL(`tel:${encodeURIComponent(phoneNumber)}`);
+  if (travelNative) {if(!await travelNative.openDialer(phoneNumber))throw Error('Thiết bị không có trình gọi điện. SOS và chia sẻ vị trí vẫn dùng được.');return;}
+  const url=`tel:${encodeURIComponent(phoneNumber)}`;
+  if(!await Linking.canOpenURL(url))throw Error('Thiết bị không có trình gọi điện. SOS và chia sẻ vị trí vẫn dùng được.');
+  await Linking.openURL(url);
 }
 
 export async function composeEmergencySms(phoneNumber: string, message: string) {

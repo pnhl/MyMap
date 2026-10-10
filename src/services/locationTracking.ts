@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import {travelNative} from './travelPlatform';
 import {setJourneyActivityTracking} from './journeyActivity';
+import type {TrackingSnapshot} from '../types/parity';
+import {getCurrentUser} from './auth';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Accelerometer } from 'expo-sensors';
@@ -16,6 +18,13 @@ export type BatteryProfile = 'battery_saver' | 'balanced' | 'high_accuracy' | 'a
 const PROFILE_KEY = 'mymap:battery-profile';
 const TRACKING_MODE_KEY = 'mymap:tracking-mode';
 const TRACKING_ENABLED_KEY = 'mymap:tracking-enabled';
+export const TRACKING_SNAPSHOT_KEY='mymap:tracking-snapshot:v1';
+async function publishTracking(enabled:boolean,mode:TrackingSnapshot['mode'],error:string|null=null){
+ const snapshot:TrackingSnapshot={schema:1,owner:(await getCurrentUser())?.id||null,enabled,mode,updatedAt:Date.now(),error};
+ await AsyncStorage.setItem(TRACKING_SNAPSHOT_KEY,JSON.stringify(snapshot));
+ travelNative?.updateTrackingSnapshot?.(JSON.stringify(snapshot));
+ setJourneyActivityTracking(enabled,snapshot);
+}
 let operations: Promise<unknown> = Promise.resolve();
 function serialize<T>(work: () => Promise<T>): Promise<T> {
   const next = operations.then(work);
@@ -234,7 +243,7 @@ export function startTracking(): Promise<TrackingStartResult> {
     const mode = await configureTracking(backgroundGranted);
     await AsyncStorage.setItem(TRACKING_ENABLED_KEY, 'true');
     travelNative?.setTrackingIndicator?.(true);
-    setJourneyActivityTracking(true);
+    await publishTracking(true,mode);
     await AsyncStorage.removeItem(TRACKING_ERROR_KEY);
     let firstPointSaved = false;
     try {
@@ -256,18 +265,19 @@ export function restoreTracking(): Promise<void> {
       await flushLocationWrites();
       const enabled = await AsyncStorage.getItem(TRACKING_ENABLED_KEY);
       const registered = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
-      if (enabled === 'false' || (enabled !== 'true' && !registered)) return;
+      if (enabled === 'false' || (enabled !== 'true' && !registered)){await publishTracking(false,'off');return;}
       const fg = await Location.getForegroundPermissionsAsync();
       if (fg.status !== 'granted' || fg.android?.accuracy === 'coarse' || !(await Location.hasServicesEnabledAsync())) {
         throw new Error('Hành trình bị ngắt. Hãy bật GPS và cấp quyền vị trí chính xác cho MyMap.');
       }
       const bg = await Location.getBackgroundPermissionsAsync().catch(() => ({ status: 'denied' }));
-      await configureTracking(bg.status === 'granted');
-      setJourneyActivityTracking(true);
+      const mode=await configureTracking(bg.status === 'granted');
+      await publishTracking(true,mode);
       await AsyncStorage.setItem(TRACKING_ENABLED_KEY, 'true');
       await AsyncStorage.removeItem(TRACKING_ERROR_KEY);
     } catch (error) {
       await AsyncStorage.setItem(TRACKING_ERROR_KEY, error instanceof Error ? error.message : 'Không thể khôi phục ghi hành trình.');
+      await publishTracking(false,'off',error instanceof Error?error.message:'Ghi hành trình bị ngắt.');
     }
   });
 }
@@ -280,7 +290,7 @@ export function stopTracking(): Promise<void> {
   return serialize(async () => {
   await AsyncStorage.setItem(TRACKING_ENABLED_KEY, 'false');
   travelNative?.setTrackingIndicator?.(false);
-  setJourneyActivityTracking(false);
+  await publishTracking(false,'off');
   await travelNative?.stopPlatformTracking?.();
   stopAdaptiveMotionListener();
   foregroundLocationSub?.remove();

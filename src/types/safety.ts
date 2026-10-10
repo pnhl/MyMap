@@ -9,4 +9,4 @@ export interface CrowdCell {
 }
 
 export interface TrustedContact { id: string; name: string; phone_e164: string | null; }
-export interface SosResult { ok: boolean; event_id: string; emergency_number: string | null; dial_requires_user_confirmation: true; contacts: TrustedContact[]; suggested_message: string; location_url: string | null; }
+export interface SosResult { ok: boolean; event_id: string; emergency_number: string | null; dial_requires_user_confirmation: true; contacts: TrustedContact[]; suggested_message: string; location_url: string | null; delivery?:'queued'|'accepted'|'delivered'; }

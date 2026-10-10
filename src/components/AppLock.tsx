@@ -1,11 +1,11 @@
 import React,{useEffect,useState} from 'react';
 import {AppState,Modal,View,Pressable} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {authenticateDevice,setPrivateScreen} from '../services/platformCapabilities';
+import {authenticateDevice,setPrivateScreen,deviceCredentialAvailable} from '../services/platformCapabilities';
 import {Text} from '../ui/Text';
 export const APP_LOCK_KEY='mymap.biometric-lock.v1';
 const listeners=new Set<()=>void>();
-export async function setAppLock(enabled:boolean){if(enabled&&!await authenticateDevice('Xác nhận bật khóa MyMap'))throw new Error('Cần thiết lập sinh trắc hoặc mã khóa màn hình của thiết bị.');await AsyncStorage.setItem(APP_LOCK_KEY,String(enabled));listeners.forEach(fn=>fn());}
+export async function setAppLock(enabled:boolean){if(enabled&&(!deviceCredentialAvailable()||!await authenticateDevice('Xác nhận bật khóa MyMap')))throw new Error('Cần thiết lập sinh trắc hoặc mã khóa màn hình của thiết bị.');await AsyncStorage.setItem(APP_LOCK_KEY,String(enabled));listeners.forEach(fn=>fn());}
 export function AppLock(){
  const[locked,setLocked]=useState(true),[enabled,setEnabled]=useState(false),[ready,setReady]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  useEffect(()=>{void setPrivateScreen(enabled).catch(()=>{});return()=>{void setPrivateScreen(false).catch(()=>{});};},[enabled]);

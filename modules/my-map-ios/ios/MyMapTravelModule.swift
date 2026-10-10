@@ -57,6 +57,7 @@ public final class MyMapTravelModule: Module {
             let url = URL(string: "tel:" + value) else {
         promise.reject("INVALID_NUMBER", "Số điện thoại không hợp lệ."); return
       }
+      guard UIApplication.shared.canOpenURL(url) else { promise.resolve(false); return }
       UIApplication.shared.open(url) { promise.resolve($0) }
     }.runOnQueue(.main)
     AsyncFunction("getBuildInfo") { ["channel": "ios", "appstoreId": ""] }

@@ -291,7 +291,7 @@ const withMyMapAndroid: ConfigPlugin = config => {
       source+=`\n// MyMap: changing public build configuration must regenerate the embedded bundle.
 tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
     inputs.property('mymapTestAds', providers.environmentVariable('EXPO_PUBLIC_ENABLE_TEST_ADS').orElse('false'))
-    inputs.file(rootProject.file('../.env')).optional()
+    inputs.files(rootProject.file('../.env').exists() ? [rootProject.file('../.env')] : [])
     extraPackagerArgs.add('--reset-cache')
 }\n`;
     }
@@ -303,26 +303,25 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
     // Amazon Publisher Services demand + the official Google Mobile Ads adapter.
     // Initialization remains dormant until EXPO_PUBLIC_AMAZON_APS_APP_ID is set.
     implementation("com.amazon.android:aps-sdk:12.0.1")
-    ${process.env.MYMAP_STORE==='amazon'?'':'googleImplementation("com.amazon.android:aps-admob-adapter:6.0.0")'}`,
+    ${(process.env.APP_STORE_TARGET||process.env.MYMAP_STORE)==='amazon'?'':'googleImplementation("com.amazon.android:aps-admob-adapter:6.0.0")'}`,
       );
     }
-    if (process.env.EAS_BUILD!=='true' && !source.includes("rootProject.file('../.signing/release.properties')")) {
+    if (process.env.EAS_BUILD!=='true' && !source.includes("rootProject.file('../.signing/' + (System.getenv('APP_STORE_TARGET') ?: System.getenv('MYMAP_STORE') ?: 'play') + '/release.properties')")) {
       source = source.replace(
         /signingConfigs \{\s*debug \{([\s\S]*?)\n\s*\}\s*\}/,
         `signingConfigs {
         debug {$1
         }
         release {
-            def releasePropertiesFile = rootProject.file('../.signing/release.properties')
-            if (!releasePropertiesFile.exists()) {
-                throw new GradleException('Missing MyMap release signing files in .signing/')
-            }
+            def releasePropertiesFile = rootProject.file('../.signing/' + (System.getenv('APP_STORE_TARGET') ?: System.getenv('MYMAP_STORE') ?: 'play') + '/release.properties')
+            if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') && (it.contains('assemble') || it.contains('bundle') || it.contains('sign')) } && releasePropertiesFile.exists()) {
             def releaseProperties = new Properties()
             releasePropertiesFile.withInputStream { releaseProperties.load(it) }
             storeFile file(releaseProperties['storeFile'])
             storePassword releaseProperties['storePassword']
             keyAlias releaseProperties['keyAlias']
             keyPassword releaseProperties['keyPassword']
+            }
         }
     }`,
       );
@@ -338,6 +337,7 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
     if (!source.includes('amazon-appstore-sdk')) {
       source = source.replace('dependencies {', 'dependencies {\n    googleImplementation("com.google.android.gms:play-services-wearable:20.0.1")\n    googleImplementation("androidx.car.app:app:1.7.0")\n    googleImplementation("androidx.car.app:app-projected:1.7.0")\n    googleImplementation("org.maplibre.gl:android-sdk-opengl:13.6.1")\n    amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")');
     }
+    if (!source.includes('MyMap dependency lock contract')) source += '\n// MyMap dependency lock contract\ndependencyLocking { lockAllConfigurations() }\n';
     mod.modResults.contents = source;
     return mod;
   });
@@ -384,7 +384,7 @@ tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
     writeFileSync(join(packageDir, 'PlatformLocationModule.kt'), MODULE_SOURCE);
     writeFileSync(join(packageDir, 'PlatformLocationPackage.kt'), PACKAGE_SOURCE);
     writeFileSync(join(drawableDir, 'splash_screen.xml'), SPLASH_SOURCE);
-    for (const file of ['PlatformLocationModule.kt', 'PlatformLocationPackage.kt', 'TravelPlatformModule.kt', 'SafetyMonitorService.kt', 'PlatformTrackingService.kt', 'MomentPlatformModule.kt','MomentWidget.kt','MomentWidgetWorker.java']) {
+    for (const file of ['PlatformLocationModule.kt', 'PlatformLocationPackage.kt', 'TravelPlatformModule.kt', 'SafetyMonitorService.kt', 'PlatformTrackingService.kt', 'PlaceRegionRecorder.kt', 'MomentPlatformModule.kt','MomentWidget.kt','MomentWidgetWorker.java','MyMapPushModule.kt']) {
       copyFileSync(join(__dirname, 'native', file), join(packageDir, file));
     }
     mkdirSync(join(projectRoot,'app','src','main','res','layout'),{recursive:true});

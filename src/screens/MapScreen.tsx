@@ -1,3 +1,4 @@
+import type {NavigationSnapshot} from '../types/parity';
 import {useCommunityRoads,CommunityRoadSheet} from '../components/CommunityRoads';
 import {guidanceSpeechCue} from '../utils/guidanceSpeech';
 import {speakGuidance,stopGuidanceSpeech as stopGuidance} from '../services/platformCapabilities';
@@ -1098,7 +1099,7 @@ export default function MapScreen() {
   },[focused,!!destination,liveSpeedKmh,roadSpeedContext?.speedLimitKmh,navigationPreferences]);
   useEffect(()=>{
     const position=navigationPosition||currentPosition||latestPoint;
-    travelNative?.updateCarState(JSON.stringify({active:!!destination,destination:destination?.name,position,coordinates:destinationRoadRoute||[],steps:destinationStepsRef.current,guidance:liveRouteGuidance,speed:liveSpeedKmh,speedLimit:roadSpeedContext?.speedLimitKmh,updatedAt:Date.now()}));
+    travelNative?.updateCarState(JSON.stringify({schema:1,active:!!destination,destination:destination?.name,position,coordinates:destinationRoadRoute||[],steps:destinationStepsRef.current,guidance:liveRouteGuidance,speed:liveSpeedKmh,speedLimit:roadSpeedContext?.speedLimitKmh,updatedAt:Date.now()} satisfies NavigationSnapshot));
   },[destination,navigationPosition,currentPosition,latestPoint,destinationRoadRoute,liveRouteGuidance,liveSpeedKmh,roadSpeedContext]);
   const visibleStories = mapStories.filter(story => story.id !== 'story-welcome');
   const error = dataError || actionError;

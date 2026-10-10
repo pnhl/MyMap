@@ -4,6 +4,7 @@ import ExpoModulesCore
 import LocalAuthentication
 import Security
 import UIKit
+import CoreMotion
 import os
 
 private final class SpeechSessionDelegate: NSObject, AVSpeechSynthesizerDelegate {
@@ -51,6 +52,12 @@ public final class MyMapCapabilitiesModule: Module {
   }
   public func definition() -> ModuleDefinition {
     Name("MyMapCapabilities")
+    Function("runtimeCapabilities") { () -> [String: Any] in
+      let context=LAContext();var error:NSError?
+      let checkDialer = { UIApplication.shared.canOpenURL(URL(string:"tel:112")!) }
+      let dialer = Thread.isMainThread ? checkDialer() : DispatchQueue.main.sync(execute:checkDialer)
+      return ["gms":false,"locationProvider":"core-location","accelerometer":CMMotionManager().isAccelerometerAvailable,"barometer":CMAltimeter.isRelativeAltitudeAvailable(),"deviceCredential":context.canEvaluatePolicy(.deviceOwnerAuthentication,error:&error),"dialer":dialer,"local64Bit":MemoryLayout<Int>.size==8,"totalBytes":Double(ProcessInfo.processInfo.physicalMemory),"ads":true,"push":"apns"]
+    }
     AsyncFunction("aiHardware") { () -> [String: Any] in
       ["local64Bit": MemoryLayout<Int>.size == 8,
        "availableBytes": Double(os_proc_available_memory()),

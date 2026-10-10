@@ -1,4 +1,5 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useState,useRef} from 'react';
+import {reduceSafety,type SafetySnapshot} from '../types/parity';
 import {AppState,Modal,View} from 'react-native';
 import {getSafetyState,travelNative,configureSafety} from '../services/travelPlatform';
 import {openEmergencyDialer} from '../services/liveSafety';
@@ -7,9 +8,14 @@ import {Text} from '../ui/Text';
 export function SafetyMonitor(){
  const[state,setState]=useState<Awaited<ReturnType<typeof getSafetyState>>|null>(null);
  const[error,setError]=useState<string|null>(null);
+ const machine=useRef<SafetySnapshot>({phase:'off',incident:null,deadline:0,delivery:'none'});
  useEffect(()=>{
   let active=true;
-  const load=async()=>{if(AppState.currentState!=='active')return;const s=await getSafetyState().catch(()=>null);if(active)setState(s);};
+  const load=async()=>{if(AppState.currentState!=='active')return;const s=await getSafetyState().catch(()=>null);if(active&&s){
+   machine.current=reduceSafety(machine.current,{type:s.enabled?'enable':'disable'});
+   if(s.pendingAt)machine.current=reduceSafety(machine.current,{type:'incident',id:String(s.pendingAt),deadline:s.deadline});else machine.current=reduceSafety(machine.current,{type:'cancel'});
+   setState(machine.current.phase==='pending'?s:null);
+  }};
   travelNative?.setForeground(AppState.currentState==='active');
   void getSafetyState().then(s=>{if(s.enabled&&AppState.currentState==='active')void configureSafety(true,s.emergencyNumber).catch(()=>{});});
   const timer=setInterval(()=>void load(),1000);

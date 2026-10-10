@@ -35,8 +35,13 @@ import javax.crypto.spec.GCMParameterSpec
 class MyMapCapabilitiesModule: Module() {
   private val speechInput=SpeechInput()
   private var nano:NanoAi?=null
+  private fun gmsAvailable(context:Context):Boolean=GoogleServicesGate.available{
+    val type=Class.forName("com.google.android.gms.common.GoogleApiAvailability")
+    val instance=type.getMethod("getInstance").invoke(null)
+    type.getMethod("isGooglePlayServicesAvailable",Context::class.java).invoke(instance,context) as Int
+  }
   private fun nanoAvailable():Boolean {
-    if(!BuildConfig.NANO_ENABLED||Build.VERSION.SDK_INT<26)return false
+    if(!BuildConfig.NANO_ENABLED||Build.VERSION.SDK_INT<26||appContext.reactContext?.let{gmsAvailable(it)}!=true)return false
     return try{appContext.reactContext?.packageManager?.getPackageInfo("com.google.android.aicore",0)!=null}catch(_:Exception){false}
   }
   private var speech: TextToSpeech? = null
@@ -62,6 +67,18 @@ class MyMapCapabilitiesModule: Module() {
   }
   override fun definition() = ModuleDefinition {
     Name("MyMapCapabilities")
+    Function("runtimeCapabilities") {
+      val context=appContext.reactContext ?: throw IllegalStateException("Application context unavailable")
+      val pm=context.packageManager
+      // Reflection keeps Google classes out of the Fire startup linkage graph.
+      val gms=gmsAvailable(context)
+      val sensors=context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+      val memory=ActivityManager.MemoryInfo();(context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memory)
+      val credential=BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL)==BiometricManager.BIOMETRIC_SUCCESS
+      val dialer=android.content.Intent(android.content.Intent.ACTION_DIAL,Uri.parse("tel:112")).resolveActivity(pm)!=null
+      val adm=try{val type=Class.forName("com.amazon.device.messaging.ADM");type.getMethod("isSupported").invoke(type.getConstructor(Context::class.java).newInstance(context)) as Boolean}catch(_:Exception){false}catch(_:LinkageError){false}
+      mapOf("gms" to gms,"locationProvider" to "system","accelerometer" to (sensors.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)!=null),"barometer" to (sensors.getDefaultSensor(android.hardware.Sensor.TYPE_PRESSURE)!=null),"deviceCredential" to credential,"dialer" to dialer,"local64Bit" to android.os.Process.is64Bit(),"totalBytes" to memory.totalMem.toDouble(),"ads" to (BuildConfig.NANO_ENABLED&&gms),"push" to if(BuildConfig.NANO_ENABLED&&gms) "fcm" else if(adm) "adm" else "unavailable")
+    }
     // Stream the checksum in native code to avoid copying a ~500 MB model into JS memory.
     AsyncFunction("hashAiModel") { uri:String ->
       val context=appContext.reactContext ?: throw IllegalStateException("Application context unavailable")

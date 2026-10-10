@@ -20,6 +20,9 @@ class TravelPlatformModule(private val context: ReactApplicationContext) : React
  }
  init {activeContext=java.lang.ref.WeakReference(context)}
  override fun getName() = "TravelPlatform"
+ @ReactMethod fun configurePlaceRegions(json:String?,promise:Promise){try{PlaceRegionRecorder.configure(context,json);promise.resolve(true)}catch(e:Exception){promise.reject("PLACE_REGIONS","Chưa cấu hình được cảnh báo địa điểm.",e)}}
+ @ReactMethod fun pendingPlaceEvents(promise:Promise){try{promise.resolve(PlaceRegionRecorder.pending(context))}catch(e:Exception){promise.reject("PLACE_REGIONS","Chưa đọc được cảnh báo địa điểm.",e)}}
+ @ReactMethod fun acknowledgePlaceEvent(id:String,promise:Promise){try{PlaceRegionRecorder.acknowledge(context,id);promise.resolve(true)}catch(e:Exception){promise.reject("PLACE_REGIONS","Chưa xác nhận được cảnh báo địa điểm.",e)}}
  private val prefs get() = context.getSharedPreferences("mymap_travel", Context.MODE_PRIVATE)
  private fun spotubeLaunchIntent(): Intent? {
   // Spotube has no supported search deep link in v5. Only launch its own launcher.
@@ -80,18 +83,20 @@ class TravelPlatformModule(private val context: ReactApplicationContext) : React
  @ReactMethod fun getBuildInfo(promise: Promise) {promise.resolve(Arguments.createMap().apply {putString("channel", BuildConfig.DISTRIBUTION_CHANNEL);putString("appstoreId", BuildConfig.AMAZON_APPSTORE_ID)})}
  @ReactMethod fun consumeTrackingShortcut(promise:Promise){val command=prefs.getString("tracking_shortcut",null);prefs.edit().remove("tracking_shortcut").commit();promise.resolve(command)}
  @ReactMethod fun setTrackingIndicator(enabled:Boolean){prefs.edit().putBoolean("tracking_indicator",enabled).apply()}
+ @ReactMethod fun updateTrackingSnapshot(json:String){runCatching{val snapshot=JSONObject(json);if(snapshot.optInt("schema")==1&&json.length<4096){prefs.edit().putString("tracking_snapshot",json).apply();PlatformTrackingService.refreshNotification(context)}}}
  @ReactMethod fun startPlatformTracking(interval:Double,distance:Double,promise:Promise){try{
   prefs.edit().putBoolean("platform_tracking",true).putLong("platform_interval",interval.toLong().coerceAtLeast(1000)).putFloat("platform_distance",distance.toFloat().coerceAtLeast(1f)).apply()
   ContextCompat.startForegroundService(context,Intent(context,PlatformTrackingService::class.java));promise.resolve(true)
  }catch(e:Exception){prefs.edit().putBoolean("platform_tracking",false).apply();promise.reject("PLATFORM_TRACKING",e.message,e)}}
  @ReactMethod fun stopPlatformTracking(promise:Promise){prefs.edit().putBoolean("platform_tracking",false).remove("platform_error").apply();context.stopService(Intent(context,PlatformTrackingService::class.java));promise.resolve(true)}
  @ReactMethod fun isPlatformTracking(promise:Promise){promise.resolve(prefs.getBoolean("platform_tracking",false)&&PlatformTrackingService.running)}
- @ReactMethod fun platformTrackingError(promise:Promise){promise.resolve(prefs.getString("platform_error",null))}
+ @ReactMethod fun platformTrackingError(promise:Promise){promise.resolve(prefs.getString("platform_error",null)?:prefs.getString("place_region_error",null))}
  @ReactMethod fun openDialer(number: String, promise: Promise) {
   val safe = number.trim().filter {it.isDigit() || it == '+'}
   if (safe.isBlank()) {promise.reject("NUMBER", "Số điện thoại không hợp lệ.");return}
   try {
    val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", safe, null)).putExtra("com.android.phone.ShowDialpad",true)
+   if(intent.resolveActivity(context.packageManager)==null){promise.resolve(false);return}
    val activity = context.currentActivity
    if (activity != null) activity.startActivity(intent) else context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
    promise.resolve(true)

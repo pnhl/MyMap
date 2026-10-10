@@ -1,5 +1,7 @@
 import {requireOptionalNativeModule} from 'expo';
+import type {RuntimeCapabilities} from '../../src/types/parity';
 type Capabilities = {
+  runtimeCapabilities?():RuntimeCapabilities;
   hashAiModel?(uri:string):Promise<string>;
   aiHardware?():Promise<{local64Bit:boolean;availableBytes:number;totalBytes:number;nanoSupported:boolean;systemSupported?:boolean}>;
   systemAi?(action:'status'|'generate',input:string):Promise<string|{status:string}>;

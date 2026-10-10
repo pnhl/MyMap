@@ -41,6 +41,7 @@ function fixture(storage = new Map(), native = null, platform = false) {
     getLastKnownPositionAsync: async () => first,
   };
   const mocks = {
+    './auth':{getCurrentUser:async()=>({id:'tracking-owner'})},
     './journeyActivity': {setJourneyActivityTracking() {}},
     'react-native': { Platform: { OS: 'android' } }, 'expo-location': location,
     'expo-task-manager': { defineTask: (_, callback) => { task = callback; }, isTaskRegisteredAsync: async () => started },

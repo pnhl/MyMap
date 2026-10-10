@@ -1,5 +1,6 @@
 import {Platform} from 'react-native';
-let tracking=false,navigation:{active:boolean;guidance?:{instruction?:string};speed?:number}|null=null;
+import {parseNavigationSnapshot,type TrackingSnapshot,type NavigationSnapshot} from '../types/parity';
+let tracking=false,navigation:NavigationSnapshot|null=null;
 let operations:Promise<unknown>=Promise.resolve(),lastUpdate=0;
 function update(){
  if(Platform.OS!=='ios')return;
@@ -12,9 +13,9 @@ function update(){
   if(current.length){await current[0]!.update(props,stale);await Promise.all(current.slice(1).map(a=>a.end('immediate')));}else factory.start(props,'mymap://smart',stale);
  }).catch(()=>{/* ActivityKit may be unavailable or disabled by the owner. GPS continues. */});
 }
-export function setJourneyActivityTracking(enabled:boolean){tracking=enabled;update();}
+export function setJourneyActivityTracking(enabled:boolean,snapshot?:TrackingSnapshot){tracking=snapshot? snapshot.enabled&&snapshot.mode!=='off'&&!snapshot.error:enabled;update();}
 export function publishJourneyActivity(json:string){
- try{const next=JSON.parse(json);const changed=Boolean(navigation?.active)!==Boolean(next.active);navigation=next;
+ try{const next=parseNavigationSnapshot(json);const changed=Boolean(navigation?.active)!==Boolean(next.active);navigation=next;
   if(changed||Date.now()-lastUpdate>5000){lastUpdate=Date.now();update();}
  }catch{/* Ignore malformed native navigation snapshots. */}
 }
