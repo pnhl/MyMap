@@ -1,4 +1,4 @@
-import {AppState} from 'react-native';
+import {AppState,DeviceEventEmitter} from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getCurrentUser,subscribeAuthState} from './auth';
@@ -36,8 +36,9 @@ export function startNotificationDelivery(onOpen:(data:Record<string,unknown>)=>
  };
  const response=Notifications.addNotificationResponseReceivedListener(openResponse);
  const openNative=async()=>{const token=generation;const data=await consumeNativePushOpen();const user=await getCurrentUser();if(alive&&token===generation&&data&&user?.id===data.owner)onOpen(data);};
+ const nativeOpen=DeviceEventEmitter?.addListener('mymapPushOpen',()=>void openNative().catch(()=>{}));
  void openNative().catch(()=>{});
  void Notifications.getLastNotificationResponseAsync().then(r=>{if(r)openResponse(r);}).catch(()=>{});
  const app=AppState.addEventListener('change',s=>{if(s==='active'){void poll();void openNative().catch(()=>{});}});const timer=setInterval(()=>void poll(),15000);void poll();
- return()=>{alive=false;generation++;auth();response.remove();app.remove();clearInterval(timer);};
+ return()=>{alive=false;generation++;auth();response.remove();app.remove();nativeOpen?.remove();clearInterval(timer);};
 }

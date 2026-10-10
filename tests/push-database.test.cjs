@@ -30,5 +30,9 @@ test('push SQL isolates owners, denies token reads, locks leases and removes sta
  await db.exec('reset role');await db.query('insert into public.vc_notifications(user_id,payload)values($1,$2)',[alice,JSON.stringify({callId:'fixture-call'})]);
  await claims(alice,'service_role');const adm=(await db.query('select public.mm_claim_push_jobs()as jobs')).rows[0].jobs[0];assert.equal(adm.provider,'adm');assert.equal(adm.store,'amazon');
  await db.query('select public.mm_finish_push_job($1,$2,$3,$4)',[adm.id,adm.lease,'provider_accepted',null]);await db.exec('reset role');assert.equal((await db.query('select state from private.mm_push_jobs where id=$1',[adm.id])).rows[0].state,'done');
+ await db.query('insert into public.vc_notifications(user_id)values($1)',[alice]);await claims(alice,'service_role');const old=(await db.query('select public.mm_claim_push_jobs()as jobs')).rows[0].jobs[0];
+ await claims(alice);await db.query('select public.mm_register_push_v2($1,$2,$3,$4)',[installation,'amzn1.rotated-'+ 'b'.repeat(300),'adm','amazon']);
+ await claims(alice,'service_role');await db.query('select public.mm_finish_push_job($1,$2,$3,$4)',[old.id,old.lease,'invalid',null]);await db.exec('reset role');assert.equal((await db.query('select count(*)::int as n from private.mm_push_devices')).rows[0].n,1,'Stale invalid-token response must retain the rotated token');
+ await claims(alice,'service_role');assert.equal((await db.query('select public.mm_claim_push_jobs()as jobs')).rows[0].jobs.length,1,'Rotated token receives a new lease');
  }finally{await db.close();}
 });

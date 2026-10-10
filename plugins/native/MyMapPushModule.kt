@@ -7,7 +7,7 @@ import org.json.JSONObject
 /** Common bridge has no hard reference to ADM/GMS and is safe at cold start. */
 class MyMapPushModule(private val context:ReactApplicationContext):ReactContextBaseJavaModule(context){
  private var pendingOpen:String?=null
- init{context.addActivityEventListener(object:BaseActivityEventListener(){override fun onNewIntent(intent:android.content.Intent){pendingOpen=intent.getStringExtra("mymap_push")}})}
+ init{context.addActivityEventListener(object:BaseActivityEventListener(){override fun onNewIntent(intent:android.content.Intent){pendingOpen=intent.getStringExtra("mymap_push");if(pendingOpen!=null&&context.hasActiveReactInstance())context.getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java).emit("mymapPushOpen",null)}})}
  override fun getName()="MyMapPush"
  private val prefs get()=context.getSharedPreferences("mymap_push",Context.MODE_PRIVATE)
  @ReactMethod fun setOwner(owner:String?,promise:Promise){prefs.edit().putString("owner",owner).apply();if(owner==null)(context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).cancelAll();promise.resolve(true)}

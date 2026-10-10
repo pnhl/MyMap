@@ -12,6 +12,11 @@ declare me uuid:=private.mm_user();subject text:=auth.jwt()->>'sub';begin
  else raise exception 'invalid_push_provider_token';end if;
  if exists(select 1 from private.mm_push_devices where token=p_token and installation<>p_installation)then raise exception 'device_registration_conflict';end if;
  if (select count(*) from private.mm_push_devices where owner_id=me and installation<>p_installation)>=10 then raise exception 'device_limit';end if;
+ -- An in-flight failure for an old token must never delete its replacement.
+ if exists(select 1 from private.mm_push_devices where installation=p_installation and (token<>p_token or owner_id<>me or provider<>p_provider)) then
+  update private.mm_push_jobs set lease=null,lease_until=null,ticket=null,state='queued',next_at=now()
+  where installation=p_installation and state in ('queued','receipt');
+ end if;
  insert into private.mm_push_devices(installation,owner_id,subject,token,provider,store)values(p_installation,me,subject,p_token,p_provider,p_store)
  on conflict(installation)do update set owner_id=excluded.owner_id,subject=excluded.subject,token=excluded.token,provider=excluded.provider,store=excluded.store,updated_at=now();
 end $$;
