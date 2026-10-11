@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 function moduleFromSource(relative, mocks) {
+  mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks);
   mocks={...mocks,'../services/traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')};
   const filename = path.resolve(__dirname, '..', relative);
   const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
@@ -84,7 +85,7 @@ test('configured offline packs count actual files and do not claim failed downlo
 });
 
 test('web vector map renders the selected style and both road routes in longitude/latitude order', () => {
-  const env = { osmTileUrl: 'https://maps.example.org/{z}/{x}/{y}.png', mapLibreDemUrl: '', cesiumIonToken: '' };
+  const env = { osmTileUrl: 'https://maps.example.org/{z}/{x}/{y}.png', mapLibreDemUrl: '', cesiumTerrainEnabled: false };
   const web = moduleFromSource('src/components/WebMapEngine.tsx', {
     react: { forwardRef: fn => fn, useMemo: fn => fn(), useEffect:()=>{}, useRef: value => ({ current: value }), useCallback: fn => fn, useImperativeHandle: () => {}, createElement: (type, props, ...children) => ({ type, props, children }) },
     'react-native': { View: 'View', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: value => value, absoluteFill: {} } },

@@ -7,6 +7,7 @@ const ts = require('typescript');
 const crypto = require('node:crypto');
 
 function load(file, mocks = {}, globals = {}) {
+  mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks,globals);
   mocks={...mocks,'./traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')};
   const filename = path.resolve(__dirname, '../src', file);
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true}}).outputText;

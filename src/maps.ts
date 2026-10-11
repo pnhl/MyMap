@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import { env } from './config/env';
+import {gatewayUrl} from './services/geoGateway';
 
 export type MapEngine = 'apple' | 'google' | 'maplibre_osm' | 'stadia_osm';
 
@@ -19,8 +20,8 @@ export interface MapProviderInfo {
 export function getStadiaTileUrl(
   style: 'alidade_smooth_dark' | 'alidade_smooth' | 'outdoors' | 'osm_bright' = 'alidade_smooth_dark',
 ): string | null {
-  if (!env.stadiaMapsKey) return null;
-  return `https://tiles.stadiamaps.com/tiles/${style}/{z}/{x}/{y}@2x.png?api_key=${env.stadiaMapsKey}`;
+  if (!env.routingGatewayUrl) return null;
+  return gatewayUrl(`/stadia/tiles/${style}/{z}/{x}/{y}@2x.png`);
 }
 
 /** Configurable OpenStreetMap raster URL for a viewport tile. */
@@ -38,19 +39,19 @@ export function getStadiaStaticMapUrl(
   width: number = 600,
   height: number = 400,
 ): string | null {
-  if (!env.stadiaMapsKey) return null;
+  if (!env.routingGatewayUrl) return null;
   const center = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
   const size = `${Math.round(width)}x${Math.round(height)}@2x`;
-  return `https://tiles.stadiamaps.com/static/alidade_smooth_dark.png?center=${encodeURIComponent(center)}&zoom=${zoom}&size=${encodeURIComponent(size)}&api_key=${encodeURIComponent(env.stadiaMapsKey)}`;
+  return gatewayUrl(`/stadia/static?center=${encodeURIComponent(center)}&zoom=${zoom}&size=${encodeURIComponent(size)}`);
 }
 
 /** MapLibre is the shared renderer on Android, Fire OS and iOS. */
 export function nativeMapEngine(): MapEngine {
-  return env.stadiaMapsKey ? 'stadia_osm' : 'maplibre_osm';
+  return env.routingGatewayUrl ? 'stadia_osm' : 'maplibre_osm';
 }
 
 export function nativeMapEngineLabel(): string {
-  return env.stadiaMapsKey ? 'MapLibre Native + Stadia Maps' : 'MapLibre Native + OpenStreetMap';
+  return env.routingGatewayUrl ? 'MapLibre Native + Stadia Maps' : 'MapLibre Native + OpenStreetMap';
 }
 
 export function getMapProviderInfo(): MapProviderInfo {
@@ -58,10 +59,10 @@ export function getMapProviderInfo(): MapProviderInfo {
   return {
     engine,
     label: nativeMapEngineLabel(),
-    isOpenSource: !env.stadiaMapsKey,
+    isOpenSource: !env.routingGatewayUrl,
     requiresApiKey: false,
     vectorTilesSupported: true,
-    stadiaConfigured: Boolean(env.stadiaMapsKey),
+    stadiaConfigured: Boolean(env.routingGatewayUrl),
   };
 }
 

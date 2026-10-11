@@ -1,6 +1,6 @@
 # Các lớp bản đồ mở rộng
 
-Đã cập nhật mã nguồn; không tạo APK trong lần sửa này. Phiên bản ứng dụng vẫn là 1.0.2.
+Mô tả và bằng chứng thử nghiệm bên dưới được ghi nhận ngày 08/10/2026 ở bản 1.0.2; không đại diện artifact phát hành hiện tại. Phần cấu hình đã cập nhật cho proxy Cloudflare ngày 11/10/2026; version/build hiện tại theo `release.json`.
 
 ## Giao diện và cách bật
 
@@ -32,15 +32,14 @@ VietFuel hiện cung cấp bảng giá theo hãng/vùng, không phải bảng gi
 
 ## Cấu hình
 
-Trong `.env` cục bộ (đã được bỏ qua khỏi Git):
+Trong public `.env`/CI env, chỉ cấu hình base URL; không nhập provider keys hoặc access tokens:
 
 ```dotenv
-EXPO_PUBLIC_TOMTOM_TRAFFIC_KEY=<key của dự án>
-EXPO_PUBLIC_MAPILLARY_ACCESS_TOKEN=<Client Access Token của dự án>
+EXPO_PUBLIC_ROUTING_GATEWAY_URL=https://<GATEWAY_HOST>
 EXPO_PUBLIC_VIETFUEL_URL=https://vietfuel-api.tranqui.workers.dev
 ```
 
-Token Mapillary người dùng cung cấp đã được cấu hình cục bộ. Không chép token thật vào tài liệu, ảnh QA hoặc nhật ký. Graph dùng header OAuth, không đưa token vào URL; imagery tile API yêu cầu token trong URL nhưng code không ghi URL ra log. Các giá trị `EXPO_PUBLIC_*` nằm trong bundle client; nên cấu hình quyền/quota đúng tài khoản và dùng gateway nếu cần bảo vệ khóa ở phía server.
+TomTom và Mapillary đi qua Worker đã xác thực bằng Firebase ID token người dùng đăng nhập, gửi bằng header Authorization. Guest dùng OSM public; provider keys không còn nằm trong mobile env/bundle. Worker giữ secret, áp dụng quota, relay tile/metadata/image từ đường dẫn được phép và không trả signed provider image URL chứa credentials. Không chép token thật vào tài liệu, ảnh QA hoặc nhật ký. Xem [PUBLIC_CONFIG.md](PUBLIC_CONFIG.md) để kiểm kê biến public và [BUILD.md](BUILD.md) để nối secret bindings, deploy, health check, scan artifacts và xoay khóa cũ.
 
 VietFuel cho phép đổi base URL HTTPS sang instance đang hoạt động/tự host có cùng schema. Không tự triển khai server trong lần sửa này.
 

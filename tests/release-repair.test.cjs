@@ -1,5 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
 function load(file,mocks={},globals={}){
+ mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks,globals);
  const module={exports:{}};
  const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
  vm.runInNewContext(code,{module,exports:module.exports,require:name=>{if(!(name in mocks))throw Error('Missing '+name);return mocks[name];},Date,Number,Math,Map,Set,Promise,JSON,Error,AbortController,URLSearchParams,setTimeout,clearTimeout,process:{env:{}},...globals});
@@ -97,7 +98,7 @@ test('native map keeps the latest camera move until style loads and pauses follo
  const react={forwardRef:fn=>fn,useMemo:fn=>fn(),useEffect:()=>{},useRef:current=>{const ref={current};refs.push(ref);return ref;},useImperativeHandle:(_ref,fn)=>{controls=fn();},createElement:(type,props,...children)=>({type,props,children})};
  const native=load('src/components/MapLibreNativeMap.tsx',{'react':react,'react-native':{Image:'Image',View:'View',StyleSheet:{create:s=>s,absoluteFill:{}}},'../ui/Text':{Text:'Text'},'@maplibre/maplibre-react-native':{Camera:'Camera',GeoJSONSource:'GeoJSONSource',Layer:'Layer',Map:'Map',Marker:'Marker'},'../config/env':{env:{osmTileUrl:'https://example.org/{z}/{x}/{y}',mapLibreDemUrl:''}},'../config/mapProviders':{DEFAULT_MAP_PROVIDER:'osm',is3DMapProvider:()=>false,openMapStyleUrl:()=>null},'../services/traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')});
  const tree=native.MapLibreNativeMap({currentPosition:null,onMapReady:()=>ready++,onMapGesture:()=>gestures++},null);
- refs[0].current={easeTo:async options=>moves.push(options),setStop:async()=>{},fitBounds:async()=>{throw Error('superseded fit should not run');}};
+ refs[1].current={easeTo:async options=>moves.push(options),setStop:async()=>{},fitBounds:async()=>{throw Error('superseded fit should not run');}};
  controls.fitToCoordinates([gps(10,106),gps(11,107)]);
  controls.animateToRegion({...gps(10.7769,106.7009),zoom:16},650);
  assert.equal(moves.length,0);
@@ -109,7 +110,7 @@ test('native map keeps the latest camera move until style loads and pauses follo
 
 test('all web map documents contain syntactically valid incremental update bridges',()=>{
  const react={forwardRef:fn=>fn,useMemo:fn=>fn(),useEffect:()=>{},useRef:current=>({current}),useCallback:fn=>fn,useImperativeHandle:()=>{},createElement:(type,props,...children)=>({type,props,children})};
- const web=load('src/components/WebMapEngine.tsx',{'react':react,'react-native':{View:'View',ActivityIndicator:'ActivityIndicator',StyleSheet:{create:s=>s,absoluteFill:{}}},'react-native-webview':{WebView:'WebView'},'../config/env':{env:{osmTileUrl:'https://example.org/{z}/{x}/{y}',mapLibreDemUrl:'',cesiumIonToken:''}},'../config/mapProviders':{is3DMapProvider:()=>false,openMapStyleUrl:()=>null},'../services/traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')});
+ const web=load('src/components/WebMapEngine.tsx',{'react':react,'react-native':{View:'View',ActivityIndicator:'ActivityIndicator',StyleSheet:{create:s=>s,absoluteFill:{}}},'react-native-webview':{WebView:'WebView'},'../config/env':{env:{osmTileUrl:'https://example.org/{z}/{x}/{y}',mapLibreDemUrl:'',cesiumTerrainEnabled:false}},'../config/mapProviders':{is3DMapProvider:()=>false,openMapStyleUrl:()=>null},'../services/traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')});
  for(const engine of ['maplibre_gl','openlayers','cesium']){
   const tree=web.WebMapEngine({engine,currentPosition:gps(10,106)},null),html=tree.children[0].props.source.html;
   const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];assert.doesNotThrow(()=>new vm.Script(script));assert.match(script,/myMapBridge=\{update:/);

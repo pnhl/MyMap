@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript');
 exports.loadService=function(relative,mocks={},globals={}){
+ mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks,globals);
  const filename=path.resolve(__dirname,'..',relative),module={exports:{}};
  const code=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  vm.runInNewContext(code,{module,exports:module.exports,require:name=>{if(!(name in mocks))throw new Error('Missing mock '+name);return mocks[name];},Date,URL,JSON,atob,btoa,unescape,encodeURIComponent,setTimeout,clearTimeout,...globals},{filename});

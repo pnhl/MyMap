@@ -1,17 +1,18 @@
 # Cấu hình MyMap
 
-## Vị trí nhập API key
+## Cấu hình client và gateway
 
 1. Sao chép `.env.example` thành `.env` tại thư mục gốc.
-2. Chỉ nhập key vào `.env`. Tệp này đã nằm trong `.gitignore`.
-3. Rebuild native app sau khi thay MapLibre, APS hoặc AdMob app ID:
+2. `.env` chỉ chứa cấu hình public trong [PUBLIC_CONFIG.md](PUBLIC_CONFIG.md): URL không có credentials, publishable key, OAuth client IDs, AdMob IDs và các cờ. Git ignore không bảo vệ giá trị đã được Expo nhúng vào bundle.
+3. Khóa Stadia, TomTom, Mapillary, GraphHopper và Cesium chỉ cấp cho Cloudflare Worker theo [BUILD.md](BUILD.md) và [CLOUDFLARE_SECRETS.md](CLOUDFLARE_SECRETS.md). Mobile dùng `EXPO_PUBLIC_ROUTING_GATEWAY_URL`, không có đường dev trực tiếp bằng provider key.
+4. Rebuild native app sau khi thay MapLibre, APS hoặc AdMob app ID:
 
 ```bash
 npx expo prebuild
 npx expo run:android
 ```
 
-Các biến được hỗ trợ:
+Các nhóm cấu hình thường dùng dưới đây đều public; [PUBLIC_CONFIG.md](PUBLIC_CONFIG.md) liệt kê đầy đủ từng tên biến, gồm các placement iOS/Android:
 
 | Biến | Mục đích | Có thể để trống |
 |---|---|---|
@@ -19,16 +20,15 @@ Các biến được hỗ trợ:
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable/anon key của Supabase | Có |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | OAuth client iOS của Google cho bundle `com.pnhl.vibecoding` | Có, nút Google bị vô hiệu trên iOS |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | OAuth client Web dùng cho bản web/fallback | Có |
-| `EXPO_PUBLIC_STADIA_MAPS_API_KEY` | Stadia Maps API key (Alidade Smooth Dark / OSM tiles) | Có, dùng render tile map mở và preview tĩnh |
+| `EXPO_PUBLIC_OPENFREEMAP_BASE_URL` | Map server public/self-hosted không cần khóa | Có, dùng mặc định OpenFreeMap |
+| `EXPO_PUBLIC_OFFLINE_TILE_URL` | Tile URL không có khóa, được phép bulk/offline theo điều khoản server | Có |
 | `EXPO_PUBLIC_MAPLIBRE_STYLE_URL` | Style JSON cho MapLibre Native; bỏ trống để dùng OSM raster + địa hình 3D | Có |
 | `EXPO_PUBLIC_MAPLIBRE_DEM_URL` | TileJSON raster DEM cho địa hình MapLibre 3D | Có, có mặc định Mapterhorn |
-| `EXPO_PUBLIC_CESIUM_ION_TOKEN` | Token public, giới hạn scope cho Cesium World Terrain | Có, Cesium dùng ellipsoid nếu trống |
-| `EXPO_PUBLIC_ROUTING_GATEWAY_URL` | URL Cloudflare Geo Gateway để giữ key routing ở server | Có |
+| `EXPO_PUBLIC_CESIUM_TERRAIN_ENABLED` | Bật terrain asset cố định qua gateway; Ion token chỉ ở Worker | Có, mặc định false/ellipsoid |
+| `EXPO_PUBLIC_ROUTING_GATEWAY_URL` | Base URL HTTPS Cloudflare Geo Gateway cho toàn bộ provider có khóa | Có, nguồn OSM public vẫn dùng được |
 | `EXPO_PUBLIC_ROUTING_PROVIDERS` | Thứ tự fallback `osrm,valhalla,graphhopper` | Có |
 | `EXPO_PUBLIC_OSRM_URL` | OSRM server tự host/provider | Có, dùng demo server mặc định |
 | `EXPO_PUBLIC_VALHALLA_URL` | Valhalla server tự host/provider | Có, dùng public server mặc định |
-| `EXPO_PUBLIC_GRAPHHOPPER_URL` | GraphHopper API base URL | Có |
-| `EXPO_PUBLIC_GRAPHHOPPER_KEY` | Chỉ dành cho dev trực tiếp; production nên đặt key trong Cloudflare Worker | Có |
 | `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID` | AdMob app ID cho Android | Có |
 | `EXPO_PUBLIC_ADMOB_IOS_APP_ID` | AdMob app ID cho iOS | Có |
 | `EXPO_PUBLIC_ADMOB_NATIVE_*_ID` | Native ad unit theo từng vị trí | Có, card quảng cáo không render |
@@ -49,7 +49,7 @@ Thiết lập bắt buộc cho project `mymap-a3ae4`:
 5. Với iOS, đăng ký app cùng bundle ID `com.pnhl.vibecoding`, tải `GoogleService-Info.plist` từ đúng project vào thư mục gốc, điền `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, bật Sign in with Apple và Game Center cho App ID trong Apple Developer/App Store Connect. Apple provider còn cần Service ID, Team ID, Key ID và private key ở Firebase Console; không đặt private key trong ứng dụng.
 6. Supabase Dashboard → Authentication → Third-party Auth → thêm Firebase project `mymap-a3ae4`. Firebase token dùng với Supabase phải có custom claim `role: authenticated`; phần này phải được gắn bằng Firebase Admin SDK ở backend tin cậy.
 
-File `google-services.json` đang có trong mã nguồn đúng project number `788085390989` và đã chứa cả OAuth Android client (`client_type: 1`) lẫn OAuth Web client (`client_type: 3`). Nút Google trên Android vì thế được bật trong native build dùng debug certificate hiện tại. Bản release/Amazon vẫn phải bổ sung SHA của release keystore và tải lại file trước khi phát hành. `GoogleService-Info.plist` chưa có, nên các provider Firebase trên iOS vẫn cần file này trước khi build.
+Firebase JSON/plist được inject từ cấu hình private của môi trường build, không commit vào mã nguồn hoặc import từ JavaScript. File phải khớp application/bundle ID và cùng Firebase project. Bản release/Amazon cần đăng ký SHA đúng certificate; iOS cần cấu hình plist tương ứng. Không suy ra trạng thái credentials hiện tại từ tài liệu này; xem cách cấp file và signing theo từng store trong [BUILD.md](BUILD.md).
 
 Sau khi thay file cấu hình native, chạy:
 
@@ -89,7 +89,7 @@ Chính sách: [OSMF tile usage](https://operations.osmfoundation.org/policies/ti
 
 ## Luồng cấu hình trong code
 
-- `.env`: giá trị riêng của máy/build.
+- `.env`: cấu hình public của máy/build, không có khóa provider server.
 - `app.config.ts`: đưa cấu hình MapLibre và Mobile Ads app ID vào project Android/iOS khi prebuild.
 - `src/config/env.ts`: một điểm đọc cấu hình cho React Native.
 - `src/config/maps.ts`: bật MapLibre Native trong development/production build.
@@ -100,9 +100,9 @@ Chính sách: [OSMF tile usage](https://operations.osmfoundation.org/policies/ti
 
 ## Amazon Appstore / Fire OS
 
-- Bản đồ mặc định dùng MapLibre Native + OpenStreetMap và tự hạ về OSM nếu thiếu Stadia key; không cần Google Maps SDK trên Fire OS.
+- Bản đồ dùng MapLibre Native + nguồn mở và hạ về OSM khi gateway không sẵn sàng hoặc người dùng chưa đăng nhập; không cần Google Maps SDK trên Fire OS. Stadia có khóa chỉ đi qua gateway đã xác thực.
 - Ghi hành trình lưu ngay điểm đầu tiên. Trên thiết bị Amazon/Fire, ứng dụng dùng lớp dự phòng Android `LocationManager` không phụ thuộc Google Play Services; nếu không có quyền nền, ứng dụng chuyển sang foreground watcher thay vì báo khởi động thành công nhưng không có dữ liệu.
-- APS là nguồn demand được Amazon khuyến nghị. Native ad vẫn dùng Google Mobile Ads trên thiết bị tương thích; banner fallback có thể nhận demand APS qua mediation.
+- Ads Fire đang tắt theo store boundary; không bật Google Mobile Ads trên Fire bằng một biến môi trường. Android Google và iOS dùng cấu hình quảng cáo riêng như BUILD.md.
 - `src/screens/SettingsScreen.tsx`: chỉ hiển thị trạng thái có/chưa cấu hình, không hiển thị key.
 
 ## Ưu tiên mã nguồn mở
@@ -112,8 +112,8 @@ Chính sách: [OSMF tile usage](https://operations.osmfoundation.org/policies/ti
 - Thời tiết: Open-Meteo qua Edge Function, không yêu cầu key phía ứng dụng.
 - UI/native: React Native, Expo modules, Expo Blur, Expo Linear Gradient và Expo Vector Icons.
 - Renderer chính: MapLibre Native + OpenStreetMap, có pitch và raster DEM cho địa hình 3D. Cần development/native build; Expo Go không chứa module này.
-- Renderer dự phòng và kiểm tra chéo: Leaflet, MapLibre GL JS, OpenLayers và CesiumJS trong WebView. Cesium có globe 3D; nếu có Ion token đã giới hạn scope thì dùng World Terrain.
-- Routing: OSRM, Valhalla và GraphHopper dùng cùng một interface, cache cục bộ và fallback theo thứ tự cấu hình. Production nên deploy `cloudflare/geo-gateway` để không đưa GraphHopper key vào app.
+- Renderer dự phòng và kiểm tra chéo: Leaflet, MapLibre GL JS, OpenLayers và CesiumJS trong WebView. Cesium có globe 3D; bật `EXPO_PUBLIC_CESIUM_TERRAIN_ENABLED` chỉ khi gateway đã có Ion secret, asset terrain được cố định phía server.
+- Routing: OSRM/Valhalla public không cần khóa; TomTom/GraphHopper chỉ qua `cloudflare/geo-gateway`. Gateway yêu cầu Firebase ID token đã đăng nhập, guest dùng OSM public. Xem auth, quota, CORS và triển khai trong BUILD.md.
 
 Sau khi thêm MapLibre Native, chạy lại `npx expo prebuild` và native build. Không cần migration dữ liệu vì mọi engine dùng chung tọa độ WGS84.
 

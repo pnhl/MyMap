@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {spawnSync} = require('node:child_process');
-const {parseEnv} = require('node:util');
+const {validatePublicEnvText} = require('./provider-secret-policy.cjs');
 
 function propertyValue(source, key) {
   const raw = source.match(new RegExp('^\\s*'+key+'\\s*[=:]\\s*(.*)$','m'))?.[1];
@@ -21,16 +21,10 @@ function collectSecrets(root, {iosPlist} = {}) {
   }
   const envPath = path.join(root,'.env');
   if (fs.existsSync(envPath)) {
-    const source = fs.readFileSync(envPath,'utf8'), env = parseEnv(source);
-    add('MYMAP_MOBILE_BUILD_ENV',source);
-    // Dedicated bindings allow server-side providers to consume only their own
-    // key instead of receiving the entire build environment.
-    for (const [field,name] of Object.entries({
-      EXPO_PUBLIC_STADIA_MAPS_API_KEY:'MYMAP_STADIA_MAPS_API_KEY',
-      EXPO_PUBLIC_TOMTOM_TRAFFIC_KEY:'MYMAP_TOMTOM_TRAFFIC_KEY',
-      EXPO_PUBLIC_MAPILLARY_ACCESS_TOKEN:'MYMAP_MAPILLARY_ACCESS_TOKEN',
-      EXPO_PUBLIC_GRAPHHOPPER_KEY:'MYMAP_GRAPHHOPPER_KEY',
-    })) if (env[field]?.trim()) add(name,env[field].trim());
+    // Do not recreate the legacy archive containing public provider credentials.
+    // Provider secrets are managed directly on Cloudflare, never through Expo.
+    const source = validatePublicEnvText(fs.readFileSync(envPath,'utf8'));
+    add('MYMAP_MOBILE_PUBLIC_ENV',source);
   } else missing.push('.env');
   const androidConfig = path.join(root,'google-services.json');
   if (fs.existsSync(androidConfig)) {

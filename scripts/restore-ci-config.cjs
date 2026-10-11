@@ -2,7 +2,9 @@ const fs=require('node:fs'),path=require('node:path');
 function required(name){const v=process.env[name];if(!v)throw Error('Missing CI secret: '+name);return v;}
 function write(name,data){fs.mkdirSync(path.dirname(name),{recursive:true});fs.writeFileSync(name,data,{mode:0o600});}
 try{
- const target=process.argv[2];write('.env',required('MYMAP_PUBLIC_ENV'));
+ const target=process.argv[2];
+ const publicEnv=require('./provider-secret-policy.cjs').validatePublicEnvText(required('MYMAP_PUBLIC_ENV'));
+ write('.env',publicEnv);
  if(target==='ios')write('GoogleService-Info.plist',Buffer.from(required('FIREBASE_IOS_PLIST_BASE64'),'base64'));
  else if(target==='android'){
   write('google-services.json',Buffer.from(required('FIREBASE_ANDROID_BASE64'),'base64'));

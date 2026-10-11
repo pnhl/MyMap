@@ -4,7 +4,9 @@ import {existsSync, readFileSync} from 'node:fs';
 import {loadEnvFile} from 'node:process';
 // Config is evaluated before some Expo commands load dotenv. CI/EAS-provided
 // variables retain precedence; this reads the ignored local file silently.
-if(existsSync('./.env'))loadEnvFile('./.env');
+if(process.env.EXPO_NO_DOTENV !== '1' && existsSync('./.env'))loadEnvFile('./.env');
+require('./scripts/provider-secret-policy.cjs').assertPublicEnvironment(process.env);
+require('./scripts/maplibre-privacy-patch.cjs').applyPatch();
 const release = JSON.parse(readFileSync('./release.json', 'utf8'));
 const adMobDefaults = JSON.parse(readFileSync('./config/admob.json', 'utf8'));
 const TEST_ANDROID = 'ca-app-pub-3940256099942544~3347511713';

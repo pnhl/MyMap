@@ -22,6 +22,8 @@
     "release:check": "node scripts/release-check.cjs",
     "secrets:plan": "node scripts/cloudflare-secrets.cjs plan",
     "secrets:upload": "node scripts/cloudflare-secrets.cjs upload",
+    "check:public-config": "node scripts/provider-secret-policy.cjs",
+    "check:provider-secrets": "python scripts/scan-provider-secrets.py",
     "eas-build-post-install": "node scripts/eas-post-install.cjs",
     "lint": "node scripts/lint-source.cjs"
   },

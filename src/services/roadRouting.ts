@@ -1,3 +1,5 @@
+import {env} from '../config/env';
+import {gatewayFetch,gatewayCacheScope} from './geoGateway';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getNavigationPreferences, type NavigationPreferences} from './navigationPreferences';
 import {splitTraveledTrace, traceDistance, type TracePoint, type TraveledSegments} from './traveledTrace';
@@ -47,19 +49,10 @@ export interface RoadRouteResult {
 
 type Coordinate = { latitude: number; longitude: number };
 
-const ROUTE_CACHE_PREFIX = 'mymap.road_route.v5.';
+const ROUTE_CACHE_PREFIX = 'mymap.road_route.v6.';
 const memoryCache = new Map<string, RoadRouteResult>();
-const value = (input: string | undefined) => input?.trim() ?? '';
 
-const config = {
-  tomTomKey: value(process.env.EXPO_PUBLIC_TOMTOM_TRAFFIC_KEY),
-  gatewayUrl: value(process.env.EXPO_PUBLIC_ROUTING_GATEWAY_URL),
-  providers: value(process.env.EXPO_PUBLIC_ROUTING_PROVIDERS) || 'osrm,valhalla,graphhopper',
-  osrmUrl: value(process.env.EXPO_PUBLIC_OSRM_URL) || 'https://router.project-osrm.org',
-  valhallaUrl: value(process.env.EXPO_PUBLIC_VALHALLA_URL) || 'https://valhalla1.openstreetmap.de',
-  graphHopperUrl: value(process.env.EXPO_PUBLIC_GRAPHHOPPER_URL) || 'https://graphhopper.com/api/1',
-  graphHopperKey: value(process.env.EXPO_PUBLIC_GRAPHHOPPER_KEY),
-};
+const config = {gatewayUrl:env.routingGatewayUrl,providers:env.routingProviders,osrmUrl:env.osrmUrl,valhallaUrl:env.valhallaUrl};
 
 function normalizedBase(url: string): string {
   return url.replace(/\/+$/, '');
@@ -115,31 +108,6 @@ function osrmRouteSteps(route: any): RouteStep[] {
       type,
       modifier,
       position: routePosition(step?.maneuver?.location),
-    };
-  });
-}
-
-function graphHopperType(sign: number): { type: string; modifier: string | null } {
-  if (sign === 4 || sign === 5) return { type: 'arrive', modifier: null };
-  if (sign === 6) return { type: 'roundabout', modifier: 'right' };
-  if (sign <= -1) return { type: 'turn', modifier: sign <= -3 ? 'sharp left' : sign === -1 ? 'slight left' : 'left' };
-  if (sign >= 1) return { type: 'turn', modifier: sign >= 3 ? 'sharp right' : sign === 1 ? 'slight right' : 'right' };
-  return { type: 'continue', modifier: 'straight' };
-}
-
-function graphHopperRouteSteps(path: any, coordinates: [number, number][]): RouteStep[] {
-  return (path?.instructions ?? []).map((step: any, index: number) => {
-    const movement = graphHopperType(Number(step?.sign ?? 0));
-    const pointIndex = Number(step?.interval?.[0] ?? 0);
-    const roadName = String(step?.street_name || '').trim() || null;
-    return {
-      distanceMeters: Math.max(0, Math.round(Number(step?.distance || 0))),
-      instruction: String(step?.text || '').trim()
-        || maneuverInstruction(index === 0 ? 'depart' : movement.type, movement.modifier, roadName),
-      roadName,
-      type: index === 0 ? 'depart' : movement.type,
-      modifier: movement.modifier,
-      position: coordinates[pointIndex] ?? null,
     };
   });
 }
@@ -308,13 +276,6 @@ function valhallaChoice(trip: any): RoadRouteResult {
   return {coordinates,distanceMeters:Math.round(Number(trip?.summary?.length??0)*1000),durationSeconds:Math.round(Number(trip?.summary?.time??0)),provider:'valhalla',steps:valhallaRouteSteps(legs,coordinates)};
 }
 
-function graphHopperProfile(mode: RoutingMode): string {
-  if (mode === 'motorbike') return 'motorcycle';
-  if (mode === 'bike') return 'bike';
-  if (mode === 'foot') return 'foot';
-  return 'car';
-}
-
 function valhallaCosting(mode: RoutingMode): string {
   if (mode === 'motorbike') return 'motor_scooter';
   if (mode === 'bike') return 'bicycle';
@@ -346,15 +307,19 @@ export function decodePolyline6(encoded: string): [number, number][] {
   return coordinates;
 }
 
-async function routeWithGateway(origin: Coordinate, destination: Coordinate, mode: RoutingMode, preferences: NavigationPreferences): Promise<RoadRouteResult> {
+async function routeWithGateway(origin: Coordinate, destination: Coordinate, mode: RoutingMode, preferences: NavigationPreferences, options?: {heading?:number|null;accuracy?:number|null;traffic?:boolean}): Promise<RoadRouteResult> {
   if (!config.gatewayUrl) throw new Error('Gateway not configured');
-  const data = await fetchJson(`${normalizedBase(config.gatewayUrl)}/route`, {
+  const response = await gatewayFetch('/route', {
     method: 'POST',
-    body: JSON.stringify({ origin, destination, mode, preferences }),
+    body: JSON.stringify({ origin, destination, mode, preferences, options }),
+    headers: {'Content-Type':'application/json'},
   });
+  const data = await response.json();
   if (!Array.isArray(data.coordinates) || data.coordinates.length < 2) throw new Error('Invalid gateway route');
   if ((preferences.avoidFerries || preferences.avoidHighways || preferences.avoidUnpaved) && data.preferencesApplied !== true) throw new Error('Gateway did not confirm avoidance preferences');
   return {
+    ...data,
+    alternatives:Array.isArray(data.alternatives)?data.alternatives.map((route:any)=>({...route,provider:'gateway'})):[],
     coordinates: data.coordinates,
     distanceMeters: Math.round(data.distanceMeters),
     durationSeconds: Math.round(data.durationSeconds),
@@ -398,24 +363,6 @@ async function routeWithOsrm(
   const points = longitudeLatitudeToRoute(route?.geometry?.coordinates);
   if (!route || points.length < 2) throw new Error('No OSRM route');
   return osrmChoices(data);
-}
-
-async function routeWithGraphHopper(origin: Coordinate, destination: Coordinate, mode: RoutingMode): Promise<RoadRouteResult> {
-  if (!config.graphHopperKey) throw new Error('GraphHopper key not configured');
-  const params = new URLSearchParams({
-    algorithm: 'alternative_route',
-    profile: graphHopperProfile(mode),
-    locale: 'vi',
-    points_encoded: 'false',
-    key: config.graphHopperKey,
-  });
-  params.append('point', `${origin.latitude},${origin.longitude}`);
-  params.append('point', `${destination.latitude},${destination.longitude}`);
-  const data = await fetchJson(`${normalizedBase(config.graphHopperUrl)}/route?${params.toString()}`);
-  const path = data?.paths?.[0];
-  const points = longitudeLatitudeToRoute(path?.points?.coordinates);
-  if (!path || points.length < 2) throw new Error('No GraphHopper route');
-  return combineRouteChoices(data.paths.map((item:any)=>{const coordinates=longitudeLatitudeToRoute(item.points?.coordinates);return {coordinates,distanceMeters:Math.round(item.distance),durationSeconds:Math.round(item.time/1000),provider:'graphhopper',steps:graphHopperRouteSteps(item,coordinates)};}));
 }
 
 async function routeWithValhalla(
@@ -517,25 +464,11 @@ export function parseTomTomRoutes(data:any,updatedAt=Date.now()):RoadRouteResult
   });
   return combineRouteChoices(routes);
 }
-let tomTomBlockedUntil=0;
-async function routeWithTomTom(origin:Coordinate,destination:Coordinate,mode:RoutingMode,prefs:NavigationPreferences,options?:{heading?:number|null;traffic?:boolean}){
-  if(Date.now()<tomTomBlockedUntil)throw new Error('Routing unavailable');
-  const params=new URLSearchParams({key:config.tomTomKey,maxAlternatives:'2',traffic:options?.traffic===false?'false':'true',departAt:'now',travelMode:mode==='motorbike'?'motorcycle':mode==='bike'?'bicycle':mode==='foot'?'pedestrian':'car',instructionsType:'text',language:'vi-VN',computeTravelTimeFor:'all'});
-  if(options?.traffic!==false)params.append('sectionType','traffic');params.append('sectionType','tollRoad');
-  if(prefs.avoidFerries)params.append('avoid','ferries');if(prefs.avoidHighways)params.append('avoid','motorways');if(prefs.avoidUnpaved)params.append('avoid','unpavedRoads');
-  if(options?.heading!=null&&Number.isFinite(options.heading)&&options.heading>=0)params.set('vehicleHeading',String(Math.round(options.heading)%360));
-  try{return parseTomTomRoutes(await fetchJson(`https://api.tomtom.com/routing/1/calculateRoute/${origin.latitude},${origin.longitude}:${destination.latitude},${destination.longitude}/json?${params}`));}
-  catch(error){if(/HTTP (401|403|429)/.test(String(error)))tomTomBlockedUntil=Date.now()+300000;throw error;}
-}
-
 function providerOrder(): RoutingProvider[] {
-  const configured = config.providers.split(',').map(item => item.trim().toLowerCase());
-  const valid = configured.filter((item): item is Exclude<RoutingProvider, 'gateway'> => item === 'osrm' || item === 'valhalla' || item === 'graphhopper');
-  const defaults: Exclude<RoutingProvider, 'gateway'>[] = ['osrm', 'valhalla', 'graphhopper'];
-  const providers: RoutingProvider[] = [...new Set(valid.length ? valid : defaults)];
-  if (config.gatewayUrl) providers.unshift('gateway');
-  if (config.tomTomKey) providers.unshift('tomtom');
-  return providers;
+  // Secret-backed routing is available only through the authenticated Worker.
+  if(config.gatewayUrl)return ['gateway','osrm','valhalla'];
+  const configured=config.providers.split(',').map(item=>item.trim());
+  return configured.filter((item):item is 'osrm'|'valhalla'=>item==='osrm'||item==='valhalla');
 }
 
 /** Resolve a road route with cached, ordered fallback across OSRM, GraphHopper and Valhalla. */
@@ -553,11 +486,11 @@ export async function fetchRoadRoute(
   const headingKey = options?.heading != null && Number.isFinite(options.heading) && options.heading >= 0
     ? `|h${Math.round(options.heading / 30)}`
     : '';
-  const cacheKey = `${mode}:${Number(prefs.avoidFerries)}${Number(prefs.avoidHighways)}${Number(prefs.avoidUnpaved)}:${origin.latitude.toFixed(4)},${origin.longitude.toFixed(4)}->${destination.latitude.toFixed(4)},${destination.longitude.toFixed(4)}${headingKey}${options?.traffic===false?'|traffic-off':''}`;
+  const cacheKey = `${gatewayCacheScope()}:${mode}:${Number(prefs.avoidFerries)}${Number(prefs.avoidHighways)}${Number(prefs.avoidUnpaved)}:${origin.latitude.toFixed(4)},${origin.longitude.toFixed(4)}->${destination.latitude.toFixed(4)},${destination.longitude.toFixed(4)}${headingKey}${options?.traffic===false?'|traffic-off':''}`;
   const cached=memoryCache.get(cacheKey);
-  if (!options?.refresh&&cached&&(!config.tomTomKey||cached.provider==='tomtom'&&Date.now()-(cached.trafficUpdatedAt||0)<120000)) return cached;
+  if (!options?.refresh&&cached&&(!config.gatewayUrl||Date.now()-(cached.trafficUpdatedAt||0)<120000)) return cached;
   try {
-    const raw = config.tomTomKey||options?.refresh ? null : await AsyncStorage.getItem(ROUTE_CACHE_PREFIX + cacheKey);
+    const raw = config.gatewayUrl||options?.refresh ? null : await AsyncStorage.getItem(ROUTE_CACHE_PREFIX + cacheKey);
     if (raw) {
       const parsed = JSON.parse(raw) as RoadRouteResult;
       if (parsed.coordinates?.length > 1) {
@@ -569,18 +502,14 @@ export async function fetchRoadRoute(
 
   for (const provider of order) {
     try {
-      const result = provider === 'tomtom'
-        ? await routeWithTomTom(origin,destination,mode,prefs,options)
-        : provider === 'gateway'
-        ? await routeWithGateway(origin, destination, mode, prefs)
+      const result = provider === 'gateway'
+        ? await routeWithGateway(origin, destination, mode, prefs, options)
         : provider === 'osrm'
           ? await routeWithOsrm(origin, destination, mode, options)
-          : provider === 'graphhopper'
-            ? await routeWithGraphHopper(origin, destination, mode)
-            : await routeWithValhalla(origin, destination, mode, prefs, options);
+          : await routeWithValhalla(origin, destination, mode, prefs, options);
       memoryCache.set(cacheKey, result);
       if(memoryCache.size>40)memoryCache.delete(memoryCache.keys().next().value!);
-      if(result.provider!=='tomtom')void AsyncStorage.setItem(ROUTE_CACHE_PREFIX + cacheKey, JSON.stringify(result)).catch(() => {});
+      if(!config.gatewayUrl)void AsyncStorage.setItem(ROUTE_CACHE_PREFIX + cacheKey, JSON.stringify(result)).catch(() => {});
       return result;
     } catch {
       // Continue to the next configured provider.

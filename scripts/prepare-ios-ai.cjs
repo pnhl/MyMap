@@ -5,6 +5,7 @@ const {pipeline}=require('node:stream/promises');
 const {Readable}=require('node:stream');
 async function main(){
  if(process.platform!=='darwin')throw Error('Run iOS native preparation on macOS.');
+ require('./maplibre-privacy-patch.cjs').applyPatch();
  const root=path.dirname(require.resolve('llama.rn/package.json'));
  const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json')));
  const manifest=JSON.parse(fs.readFileSync(path.join(root,'install/native-artifacts.json')));

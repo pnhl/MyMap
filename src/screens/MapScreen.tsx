@@ -1,3 +1,4 @@
+import {gatewayUrl} from '../services/geoGateway';
 import type {NavigationSnapshot} from '../types/parity';
 import {useCommunityRoads,CommunityRoadSheet} from '../components/CommunityRoads';
 import {guidanceSpeechCue} from '../utils/guidanceSpeech';
@@ -422,7 +423,7 @@ export default function MapScreen() {
     let active=true;
     void Promise.all([AsyncStorage.getItem('mymap.tile_provider'),AsyncStorage.getItem('mymap.map_engine'),AsyncStorage.getItem('mymap.open-map-default.v1')]).then(async([stored,engine,migrated])=>{
       if(!active)return;
-      const hasExplicitProvider = stored === 'satellite' || ((stored === 'stadia_dark' || stored === 'stadia_smooth') && Boolean(env.stadiaMapsKey));
+      const hasExplicitProvider = stored === 'satellite' || ((stored === 'stadia_dark' || stored === 'stadia_smooth') && Boolean(env.routingGatewayUrl));
       const provider = (migrated || hasExplicitProvider) && isMapTileProvider(stored) ? stored : DEFAULT_MAP_PROVIDER;
       const selectedEngine = isOpenMapProvider(provider) && engine!=='maplibre_gl' ? 'maplibre_native' : isMapRendererEngine(engine) ? engine : 'maplibre_native';
       setTileProvider(provider);setMapEngine(selectedEngine);
@@ -763,7 +764,7 @@ export default function MapScreen() {
   const upcomingSigns=features.signAssistant&&destination?upcomingRoadSigns(destinationRoadRoute||[],navigationPosition||currentPosition,explorer.features,navigationAccuracy,navigationFixAt.current):[];
   const community=useCommunityRoads(poiAnchor,features.communityReports,focused);
   const visiblePlaces=[...community.markers.slice(0,12),...prioritizeRoadMarkers(explorer.markers,poiAnchor),...mapPlaces.filter(place=>features.places||(features.fuelPrices&&place.kind==='fuel')).slice(0,10)];
-  const trafficTileUrl=focused&&features.traffic&&env.tomTomTrafficKey?`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${encodeURIComponent(env.tomTomTrafficKey)}`:'';
+  const trafficTileUrl=focused&&features.traffic&&env.routingGatewayUrl?gatewayUrl('/tomtom/traffic/tiles/{z}/{x}/{y}.png'):'';
   const poiKey=poiAnchor?`${poiAnchor.latitude.toFixed(2)},${poiAnchor.longitude.toFixed(2)}:${!mapViewport||mapViewport.zoom>=13}`:'';
   useEffect(()=>{if(!focused||!(features.places||features.fuelPrices)||!poiAnchor||mapViewport&&mapViewport.zoom<13){setMapPlaces([]);return;}let active=true;const abort=new AbortController();setMapPlaces([]);void getNearbyMapPlaces(poiAnchor.latitude,poiAnchor.longitude,abort.signal).then(places=>{if(active)setMapPlaces(places);}).catch(()=>{});return()=>{active=false;abort.abort();};},[poiKey,focused,features.places,features.fuelPrices]);
   useEffect(()=>{

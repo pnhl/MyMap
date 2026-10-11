@@ -25,7 +25,7 @@ export function PlaceSearchSheet({visible,onClose,onSelect,position,knownPlaces=
   if(submit)void rememberPlaceSearch(q).catch(()=>{});
   request.current?.abort();const controller=new AbortController();request.current=controller;
   try{let found:OsmSearchResult[]=[];const category=categories.find(([label])=>label===q)?.[1];
-   if(env.tomTomTrafficKey){try{found=category&&coords.current?await nearbyTomTomPlaces(coords.current.latitude,coords.current.longitude,category,controller.signal):await searchTomTomPlaces(q,coords.current||undefined,controller.signal);}catch{}}
+   if(env.routingGatewayUrl){try{found=category&&coords.current?await nearbyTomTomPlaces(coords.current.latitude,coords.current.longitude,category,controller.signal):await searchTomTomPlaces(q,coords.current||undefined,controller.signal);}catch{}}
    if(id!==generation.current||controller.signal.aborted)return;
    if(!found.length)found=await searchOpenStreetMap(q,10,coords.current||undefined,{allowNominatim:submit});
    if(id===generation.current){setResults(uniqueSearchPlaces(found));if(!found.length)setError('Chưa tìm thấy địa điểm. Thử thêm tên đường hoặc thành phố.');}}

@@ -6,7 +6,7 @@ function fixture(t) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'mymap-cloudflare-test-'));
   t.after(()=>{assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir())+path.sep));fs.rmSync(root,{recursive:true,force:true});});
   fs.mkdirSync(path.join(root,'.signing'));
-  fs.writeFileSync(path.join(root,'.env'),'EXPO_PUBLIC_TOMTOM_TRAFFIC_KEY=private-fixture-value\nEXPO_PUBLIC_SUPABASE_URL=https://project.example.test\n');
+  fs.writeFileSync(path.join(root,'.env'),'EXPO_PUBLIC_SUPABASE_URL=https://project.example.test\n');
   fs.writeFileSync(path.join(root,'google-services.json'),JSON.stringify({client:[{client_info:{android_client_info:{package_name:'com.pnhl.vibecoding'}}}]}));
   fs.writeFileSync(path.join(root,'.signing/release.properties'),'storeFile=../../.signing/existing.p12\nstorePassword=existing-password\nkeyAlias=existing-alias\nkeyPassword=existing-key-password\n');
   fs.writeFileSync(path.join(root,'.signing/existing.p12'),'existing-key-bytes');
@@ -19,7 +19,8 @@ test('collection keeps exact existing signing key/passwords and reports absent i
   const root=fixture(t),plan=collectSecrets(root),values=Object.fromEntries(plan.secrets.map(s=>[s.name,s.value]));
   assert.equal(Buffer.from(values.MYMAP_ANDROID_KEYSTORE_BASE64,'base64').toString(),'existing-key-bytes');
   assert.deepEqual(JSON.parse(values.MYMAP_ANDROID_SIGNING_JSON),{storePassword:'existing-password',keyAlias:'existing-alias',keyPassword:'existing-key-password'});
-  assert.equal(values.MYMAP_TOMTOM_TRAFFIC_KEY,'private-fixture-value');
+  assert.match(values.MYMAP_MOBILE_PUBLIC_ENV,/EXPO_PUBLIC_SUPABASE_URL/);
+  assert.equal(values.MYMAP_MOBILE_BUILD_ENV,undefined);
   assert.ok(plan.missing.includes('GoogleService-Info.plist'));
   assert.doesNotMatch(JSON.stringify(metadata(plan)),/private-fixture-value|existing-password|project\.example/);
   assert.equal(propertyValue('storeFile=C\\:\\\\key.p12','storeFile'),'C:\\key.p12');
@@ -30,8 +31,14 @@ test('wrong Firebase package or oversized secret fails before any upload',t=>{
   const root=fixture(t);
   fs.writeFileSync(path.join(root,'google-services.json'),JSON.stringify({client:[]}));
   assert.throws(()=>collectSecrets(root),/package mismatch/);
-  fs.writeFileSync(path.join(root,'.env'),'VALUE='+('x'.repeat(65536)));
+  fs.writeFileSync(path.join(root,'.env'),'EXPO_PUBLIC_LARGE_FIXTURE='+('x'.repeat(65536)));
   assert.throws(()=>collectSecrets(root),/size limit/);
+});
+
+test('legacy public provider credentials cannot be imported or archived again',t=>{
+  const root=fixture(t);
+  fs.writeFileSync(path.join(root,'.env'),'EXPO_PUBLIC_'+'TOMTOM_TRAFFIC_KEY=private-fixture-value');
+  assert.throws(()=>collectSecrets(root),error=>/Server credential/.test(error.message)&&!error.message.includes('private-fixture-value'));
 });
 
 test('uploads use stdin and fixed Cloudflare API; receipts exclude values and reruns preserve existing secrets',t=>{

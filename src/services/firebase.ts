@@ -28,14 +28,14 @@ export function waitForFirebaseAuth(): Promise<void> {
   return authReadyPromise;
 }
 
-export async function getFirebaseIdToken(): Promise<string | null> {
+export async function getFirebaseIdToken(forceRefresh = false): Promise<string | null> {
   await waitForFirebaseAuth();
   const user = firebaseAuth.currentUser;
   if (!user) return null;
   // Supabase verifies this native Firebase ID token through Third-party Auth.
   // A claim-less Firebase token runs as `anon`; RLS then validates its exact
   // issuer, audience and subject before granting access to MyMap data.
-  const token = await user.getIdToken(false);
+  const token = await user.getIdToken(forceRefresh);
   if (firebaseAuth.currentUser?.uid !== user.uid) throw new Error('Tài khoản đã thay đổi.');
   return token;
 }

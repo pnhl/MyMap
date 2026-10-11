@@ -1,3 +1,4 @@
+import {gatewayFetch,gatewayCacheScope} from './geoGateway';
 import {VectorTile} from '@mapbox/vector-tile';
 import {PbfReader} from 'pbf';
 import {env} from '../config/env';
@@ -27,11 +28,11 @@ export function decodeCoverage(bytes:Uint8Array,tile:Tile):MapillaryTileImage[]{
 }
 async function fetchCoverage(tile:Tile,signal?:AbortSignal):Promise<MapillaryTileImage[]>{
   if(signal?.aborted)throw new Error('Đã hủy tải ảnh.');
-  const key=`${tile.z}/${tile.x}/${tile.y}`,saved=cache.get(key);
+  const tilePath=`${tile.z}/${tile.x}/${tile.y}`,key=gatewayCacheScope()+tilePath,saved=cache.get(key);
   if(saved&&Date.now()-saved.at<1800000)return saved.images;
   const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(abort,6000);
   try{
-    const response=await fetch(`https://tiles.mapillary.com/maps/vtp/mly1_public/2/${key}?access_token=${encodeURIComponent(env.mapillaryToken)}`,{signal:controller.signal});
+    const response=await gatewayFetch(`/mapillary/tiles/${tilePath}.mvt`,{signal:controller.signal});
     if(!response.ok)throw new Error('Ảnh đường chưa sẵn sàng.');
     const bytes=new Uint8Array(await response.arrayBuffer());
     if(controller.signal.aborted)throw new Error('Đã hủy tải ảnh.');
@@ -40,7 +41,7 @@ async function fetchCoverage(tile:Tile,signal?:AbortSignal):Promise<MapillaryTil
   finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
 }
 export async function nearbyImageIds(latitude:number,longitude:number,radiusMeters:number,signal?:AbortSignal,history=false):Promise<string[]>{
-  if(!env.mapillaryToken)return[];
+  if(!env.routingGatewayUrl)return[];
   if(Date.now()<unavailableUntil)throw new Error('Lớp phủ ảnh tạm thời chưa sẵn sàng.');
   const tiles=coverageTiles(latitude,longitude,radiusMeters),responses=await Promise.allSettled(tiles.map(tile=>fetchCoverage(tile,signal)));
   if(signal?.aborted)throw new Error('Đã hủy tải ảnh.');

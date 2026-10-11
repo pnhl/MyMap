@@ -12,7 +12,7 @@ function loadRouting() {
   }).outputText;
   const module = { exports: {} };
   vm.runInThisContext(`(function(require,module,exports){${code}\n})`, { filename })(
-    name => name === './traveledTrace' ? require('./helpers.cjs').loadPure('src/services/traveledTrace.ts') : name === './navigationPreferences' ? {getNavigationPreferences:async()=>({avoidFerries:false,avoidHighways:false,avoidUnpaved:false,speedWarnings:true,sound:true,vibration:true,customSpeedKmh:null})} : name === '@react-native-async-storage/async-storage'
+    name => name === '../config/env' ? {env:{routingGatewayUrl:'',routingProviders:'osrm,valhalla',osrmUrl:'https://router.project-osrm.org',valhallaUrl:'https://valhalla1.openstreetmap.de'}} : name === './geoGateway' ? {gatewayCacheScope:()=> 'fixture-owner'} : name === './traveledTrace' ? require('./helpers.cjs').loadPure('src/services/traveledTrace.ts') : name === './navigationPreferences' ? {getNavigationPreferences:async()=>({avoidFerries:false,avoidHighways:false,avoidUnpaved:false,speedWarnings:true,sound:true,vibration:true,customSpeedKmh:null})} : name === '@react-native-async-storage/async-storage'
       ? { getItem: async () => null, setItem: async () => {} }
       : (() => { throw new Error(`Missing mock for ${name}`); })(),
     module,
@@ -51,9 +51,9 @@ test('Valhalla polyline6 decoder preserves Vietnamese coordinates', () => {
   assert.deepEqual(decoded, expected);
 });
 
-test('routing source contains OSRM, GraphHopper, Valhalla and gateway fallbacks', () => {
+test('routing source contains public OSRM/Valhalla and secret-backed gateway fallbacks', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/services/roadRouting.ts'), 'utf8');
-  for (const provider of ['routeWithGateway', 'routeWithOsrm', 'routeWithGraphHopper', 'routeWithValhalla']) {
+  for (const provider of ['routeWithGateway', 'routeWithOsrm', 'routeWithValhalla']) {
     assert.ok(source.includes(provider), `Missing routing provider: ${provider}`);
   }
   assert.ok(source.includes('/match/v1/driving/'), 'Recorded routes should use OSRM map matching');

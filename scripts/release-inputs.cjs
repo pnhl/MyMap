@@ -1,6 +1,7 @@
 const fs=require('node:fs'),crypto=require('node:crypto'),{execFileSync}=require('node:child_process');
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 function releaseInputs(env=process.env){
+ require('./provider-secret-policy.cjs').assertPublicEnvironment(env);
  const commit=env.MYMAP_RELEASE_COMMIT||env.EAS_BUILD_GIT_COMMIT_HASH||env.GITHUB_SHA||execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
  if(!/^[a-f0-9]{40}$/.test(commit))throw Error('Release requires a full source commit SHA.');
  const sourceFiles=['app.config.ts'];

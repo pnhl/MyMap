@@ -1,3 +1,6 @@
+import {gatewayUrl} from '../services/geoGateway';
+import {gatewayWebPrelude} from '../services/gatewayWebResources';
+import {useGatewaySession} from '../hooks/useGatewaySession';
 import React, { useRef, useImperativeHandle, forwardRef, useEffect, useCallback, useMemo } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
@@ -50,19 +53,19 @@ export interface LeafletMapProps {
   attributionBottom?: number;
 }
 
-const stadiaKey = env.stadiaMapsKey;
+const hasGateway = Boolean(env.routingGatewayUrl);
 
 const TILE_URLS = {
   stadia_dark: {
-    url: stadiaKey
-      ? `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${stadiaKey}`
+    url: hasGateway
+      ? gatewayUrl('/stadia/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png')
       : 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     maxZoom: 20,
     attr: '&copy; OpenStreetMap contributors',
   },
   carto_dark: {
-    url: stadiaKey
-      ? `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${stadiaKey}`
+    url: hasGateway
+      ? gatewayUrl('/stadia/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png')
       : 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     maxZoom: 20,
     attr: '&copy; OpenStreetMap contributors',
@@ -73,8 +76,8 @@ const TILE_URLS = {
     attr: '&copy; OpenStreetMap contributors',
   },
   stadia_smooth: {
-    url: stadiaKey
-      ? `https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=${stadiaKey}`
+    url: hasGateway
+      ? gatewayUrl('/stadia/tiles/alidade_smooth/{z}/{x}/{y}{r}.png')
       : (env.osmTileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
     maxZoom: 20,
     attr: '&copy; OpenStreetMap contributors',
@@ -86,7 +89,7 @@ const TILE_URLS = {
   },
 };
 
-function generateHtml(initialLat: number, initialLng: number, initialZoom: number, tileProv: LeafletTileProvider, attributionBottom: number): string {
+function generateHtml(initialLat: number, initialLng: number, initialZoom: number, tileProv: LeafletTileProvider, attributionBottom: number, token: string): string {
   const tileConfig = TILE_URLS[tileProv as keyof typeof TILE_URLS] || TILE_URLS.stadia_dark;
 
   return `<!DOCTYPE html>
@@ -306,6 +309,8 @@ function generateHtml(initialLat: number, initialLng: number, initialZoom: numbe
 
   <script>
     var map = null;
+    ${gatewayWebPrelude(token)}
+    const authenticatedMap=Boolean(gatewayToken);
     var currentTileLayer = null;
     var hasCenteredUser = false;
     var userMarker = null;
@@ -321,7 +326,7 @@ function generateHtml(initialLat: number, initialLng: number, initialZoom: numbe
     var scratchPolygons = [];
 
     window.onerror = function(message, source, lineno, colno, error) {
-      sendToRN({ type: 'MAP_ERROR', message: String(message) + ' (line ' + lineno + ')' });
+      sendToRN({ type: 'MAP_ERROR', message: 'Chưa tải được bản đồ. Hãy thử lại.' });
     };
 
     var tileProviders = {
@@ -388,6 +393,7 @@ function generateHtml(initialLat: number, initialLng: number, initialZoom: numbe
     function setTileLayer(provKey) {
       if (!map) return;
       var cfg = tileProviders[provKey] || tileProviders.carto_dark;
+      if(isProtectedResource(cfg.url)&&!authenticatedMap)cfg=tileProviders.osm;
       if (currentTileLayer) {
         map.removeLayer(currentTileLayer);
       }
@@ -397,7 +403,7 @@ function generateHtml(initialLat: number, initialLng: number, initialZoom: numbe
         errorTileUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="%23020C24"/><path d="M0 0h256v256H0z" fill="none" stroke="%2352E3FF" stroke-width="0.5" stroke-opacity="0.2"/></svg>'
       };
       if (cfg.subdomains) options.subdomains = cfg.subdomains;
-      currentTileLayer = L.tileLayer(cfg.url, options).addTo(map);
+      currentTileLayer = leafletResourceLayer(cfg.url, options).addTo(map);
     }
 
     function escapeHtml(str) {
@@ -445,7 +451,7 @@ function generateHtml(initialLat: number, initialLng: number, initialZoom: numbe
       if (!map) return;
 
       choiceLayers.clearLayers();trafficLayers.clearLayers();poiLayers.clearLayers();
-      if((state.trafficTileUrl||'')!==trafficTileTemplate){if(trafficTileLayer)map.removeLayer(trafficTileLayer);trafficTileLayer=null;trafficTileTemplate=state.trafficTileUrl||'';if(trafficTileTemplate)trafficTileLayer=L.tileLayer(trafficTileTemplate,{opacity:.85,maxNativeZoom:18,maxZoom:20,attribution:'© TomTom'}).addTo(map);}
+      if((state.trafficTileUrl||'')!==trafficTileTemplate){if(trafficTileLayer)map.removeLayer(trafficTileLayer);trafficTileLayer=null;trafficTileTemplate=authenticatedMap?(state.trafficTileUrl||''):'';if(trafficTileTemplate)trafficTileLayer=leafletResourceLayer(trafficTileTemplate,{opacity:.85,maxNativeZoom:18,maxZoom:20,attribution:'© TomTom'}).addTo(map);}
       (state.roadLines||[]).forEach(function(line){if(line.length>1)L.polyline(line,{pane:'choices',color:'#C084FC',weight:3,opacity:.55,interactive:false}).addTo(choiceLayers);});
       scaleControl.getContainer().style.marginTop=(state.scaleBarTop||126)+'px';
       (state.routeAlternatives||[]).forEach(function(line,index){if(index===state.selectedRouteIndex||line.length<2)return;L.polyline(line,{pane:'choices',color:'#7187AF',weight:8}).on('click',function(e){L.DomEvent.stopPropagation(e);sendToRN({type:'ROUTE_CHOICE',index:index});}).addTo(choiceLayers);});
@@ -729,6 +735,7 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(function Le
   },
   ref
 ) {
+  const session = useGatewaySession();
   const webViewRef = useRef<any>(null);
   const isReadyRef = useRef(false);
   const WebViewComponent = WebView as any;
@@ -739,12 +746,13 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(function Le
 
   const htmlSource = useMemo(
     () => ({
-      html: generateHtml(initialLat, initialLng, initialZoom, tileProvider, attributionBottom),
-      baseUrl: 'https://tiles.stadiamaps.com',
+      html: generateHtml(initialLat, initialLng, initialZoom, tileProvider, attributionBottom, session.token),
+      baseUrl: 'https://app.mymap.local/',
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [session.owner, session.token]
   );
+  useEffect(()=>{isReadyRef.current=false;},[htmlSource]);
 
   const syncState = useCallback(() => {
     if (!isReadyRef.current || !webViewRef.current) return;

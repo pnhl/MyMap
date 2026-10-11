@@ -6,6 +6,7 @@ const test = require('node:test');
 const ts = require('typescript');
 
 function loadTypeScriptModule(relativePath, mocks = {}) {
+  mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks);
   mocks={...mocks,'./traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')};
   const filename = path.resolve(__dirname, '..', relativePath);
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {

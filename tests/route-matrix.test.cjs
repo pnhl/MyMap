@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const{loadService}=require('./service-loader.cjs');const rules=loadService('src/utils/catalogRules.ts');
 const origin={name:'A',latitude:21,longitude:105},destination={name:'B',latitude:21.01,longitude:105.02};
-function fixture(fetch){return loadService('src/services/routeMatrix.ts',{'../config/env':{env:{tomTomTrafficKey:'test-key'}},'../utils/catalogRules':rules},{fetch,URLSearchParams,AbortController});}
+function fixture(fetch){return loadService('src/services/routeMatrix.ts',{'../config/env':{env:{routingGatewayUrl:'https://gateway.example.test'}},'../utils/catalogRules':rules},{fetch,URLSearchParams,AbortController});}
 const success=(originIndex=0,destinationIndex=0)=>({originIndex,destinationIndex,routeSummary:{lengthInMeters:2000,travelTimeInSeconds:300,trafficDelayInSeconds:60}});
 test('matrix results preserve destination indexes even when cells arrive out of order',()=>{
  const s=fixture(()=>{}),cells=s.parseRouteMatrix({data:[success(0,1),success(0,0)]},1,2);assert.equal(cells[0].destinationIndex,0);assert.equal(cells[1].destinationIndex,1);assert.equal(cells[0].seconds,300);

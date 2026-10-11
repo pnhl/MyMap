@@ -1,6 +1,7 @@
 // AGP 9: Invertase's shared plugin does not eagerly create the Android extension.
 // Apply the library plugin before RN Firebase/AdMob configure android{}.
 const fs=require('node:fs');
+require('./maplibre-privacy-patch.cjs').applyPatch();
 for(const [name,expected]of Object.entries({'@react-native-firebase/app':'26.4.0','@react-native-firebase/auth':'26.4.0','react-native-google-mobile-ads':'16.3.4','expo-modules-core':'57.0.21'})){
  if(require(name+'/package.json').version!==expected)throw Error('Review native patch for changed upstream package: '+name);
 }

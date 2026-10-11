@@ -20,7 +20,7 @@ export function MapFeatureSettings() {
       <View style={{ flex: 1 }}><Text style={{ fontWeight: '700' }}>{MAP_FEATURES[key][0]}</Text><Text style={{ color: theme.colors.muted, fontSize: 12, lineHeight: 18 }}>{MAP_FEATURES[key][1]}</Text></View>
       <Switch accessibilityLabel={MAP_FEATURES[key][0]} value={preferences[key]} disabled={busy} onValueChange={value => { setBusy(true); setError(''); void setMapFeature(key, value).catch(() => setError('Chưa lưu được lựa chọn. Hãy thử lại.')).finally(() => setBusy(false)); }} />
     </View>)}
-    {!env.mapillaryToken && <Text style={{ color: theme.colors.muted, fontSize: 12 }}>Ảnh, lịch sử và phân tích Mapillary chưa sẵn sàng trên bản này. Biển báo OSM vẫn sử dụng được.</Text>}
+    {!env.routingGatewayUrl && <Text style={{ color: theme.colors.muted, fontSize: 12 }}>Ảnh, lịch sử và phân tích Mapillary chưa sẵn sàng trên bản này. Biển báo OSM vẫn sử dụng được.</Text>}
     {!!error && <Text accessibilityRole="alert">{error}</Text>}
   </GlassSurface>;
 }

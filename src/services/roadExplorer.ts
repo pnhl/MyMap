@@ -1,3 +1,4 @@
+import {gatewayFetch,gatewayUrl,isGatewayUrl,gatewayCacheScope} from './geoGateway';
 import { env } from '../config/env';
 import type { MapPlace } from './mapPlaces';
 import {nearbyImageIds} from './mapillaryTiles';
@@ -11,15 +12,15 @@ export function validCoordinate(point: Coordinate) { return Number.isFinite(poin
 export function annotationId(value: string) { let hash = 2166136261; for (const c of value) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619); return -5000000000 - (hash >>> 0); }
 export async function explorerRequest(url: string, signal?: AbortSignal, options?: RequestInit, ttl = 300000): Promise<any> {
   if (signal?.aborted) throw new Error('Đã hủy tải dữ liệu.');
-  const key = url + (options?.body || ''), saved = cache.get(key);
+  const key = gatewayCacheScope() + url + (options?.body || ''), saved = cache.get(key);
   if (saved && Date.now() - saved.at < ttl) return saved.data;
   const controller = new AbortController(), abort = () => controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(abort, 20000);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await (isGatewayUrl(url) ? gatewayFetch(url.slice(env.routingGatewayUrl.replace(/\/+$/, '').length), { ...options, signal: controller.signal }) : fetch(url, { ...options, signal: controller.signal }));
     if (!response.ok) {
-      if (url.startsWith('https://graph.mapillary.com/') && [401,403,429].includes(response.status)) mapillaryBlockedUntil = Date.now() + 300000;
+      if (isGatewayUrl(url) && [401,403,429].includes(response.status)) mapillaryBlockedUntil = Date.now() + 300000;
       throw new Error('Nguồn dữ liệu chưa sẵn sàng. Hãy thử lại sau.');
     }
     const data = await response.json();
@@ -81,19 +82,19 @@ export function nearbyBbox(point: Coordinate, radiusMeters = 700) {
   return [Math.max(-180, lon-lngDelta), Math.max(-90, lat-delta), Math.min(180, lon+lngDelta), Math.min(90, lat+delta)].join(',');
 }
 async function mapillary(path: string, parameters: Record<string, string>, signal?: AbortSignal) {
-  if (!env.mapillaryToken) throw new Error('Ảnh Mapillary chưa được cấu hình trên bản này.');
+  if (!env.routingGatewayUrl) throw new Error('Ảnh Mapillary chưa được cấu hình trên bản này.');
   if (Date.now() < mapillaryBlockedUntil) throw new Error('Mapillary chưa sẵn sàng. Hãy thử lại sau.');
-  return explorerRequest(`https://graph.mapillary.com/${path}?${new URLSearchParams(parameters)}`, signal, { headers: { Authorization: `OAuth ${env.mapillaryToken}` } });
+  return explorerRequest(gatewayUrl(`/mapillary/graph/${path}?${new URLSearchParams(parameters)}`), signal);
 }
 export function parseStreetImages(data: any): StreetImage[] {
   return (Array.isArray(data?.data) ? data.data : []).flatMap((item: any) => {
     const coordinates = (item.computed_geometry || item.geometry)?.coordinates, position = { latitude: coordinates?.[1], longitude: coordinates?.[0] }, capturedAt = Number(item.captured_at);
-    if (!validCoordinate(position) || !/^\d+$/.test(String(item.id)) || !Number.isFinite(capturedAt) || capturedAt <= 0 || capturedAt > Date.now()+86400000 || typeof item.thumb_1024_url !== 'string' || !item.thumb_1024_url.startsWith('https://')) return [];
-    return [{ ...position, id: String(item.id), capturedAt, thumbnail: item.thumb_1024_url, creator: String(item.creator?.username || 'Cộng đồng Mapillary') }];
+    if (!validCoordinate(position) || !/^\d+$/.test(String(item.id)) || !Number.isFinite(capturedAt) || capturedAt <= 0 || capturedAt > Date.now()+86400000 || typeof item.thumb_1024_url !== 'string' || !isGatewayUrl(item.thumb_1024_url)) return [];
+    return [{ ...position, id: String(item.id), capturedAt, thumbnail: env.routingGatewayUrl ? gatewayUrl(`/mapillary/images/${item.id}?size=1024`) : item.thumb_1024_url, creator: String(item.creator?.username || 'Cộng đồng Mapillary') }];
   }).sort((a: StreetImage, b: StreetImage) => b.capturedAt-a.capturedAt).slice(0, 40);
 }
 export async function fetchStreetImages(point: Coordinate, signal?: AbortSignal, history = false, reference?:StreetImage) {
-  if (!env.mapillaryToken) throw new Error('Ảnh Mapillary chưa được cấu hình trên bản này.');
+  if (!env.routingGatewayUrl) throw new Error('Ảnh Mapillary chưa được cấu hình trên bản này.');
   if (Date.now()<mapillaryBlockedUntil) throw new Error('Mapillary chưa sẵn sàng. Hãy thử lại sau.');
   const radius=history?100:1000;
   let ids:string[]=[];

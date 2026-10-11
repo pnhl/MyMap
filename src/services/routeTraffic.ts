@@ -1,3 +1,4 @@
+import {gatewayFetch,gatewayCacheScope} from './geoGateway';
 import {env} from '../config/env';
 import {evaluateRouteProximity,pointAlongRoute,navigationDistanceMeters} from '../utils/navigation';
 export type TrafficSegment={id:string;coordinates:[number,number][];currentSpeed:number;freeFlowSpeed:number;closed:boolean;updatedAt:number};
@@ -21,9 +22,9 @@ export function trafficSamplePoints(routes:[number,number][][]):{latitude:number
  }return points.slice(0,6);
 }
 export async function fetchRouteTraffic(routes:[number,number][][],signal?:AbortSignal):Promise<RouteTraffic>{
- if(!env.tomTomTrafficKey)return {status:'unconfigured',segments:[],sampledPoints:0,updatedAt:null};
+ if(!env.routingGatewayUrl)return {status:'unconfigured',segments:[],sampledPoints:0,updatedAt:null};
  const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)controller.abort();const timer=setTimeout(abort,14000);
- try{const points=trafficSamplePoints(routes);const results=await Promise.allSettled(points.map(async point=>{const params=new URLSearchParams({key:env.tomTomTrafficKey,point:`${point.latitude},${point.longitude}`,unit:'kmph'});const response=await fetch(`https://api.tomtom.com/traffic/services/4/flowSegmentData/relative0/16/json?${params}`,{signal:controller.signal});if(!response.ok)throw new Error('Traffic unavailable');return parseTrafficSegment(await response.json(),routes);}));
+ try{const points=trafficSamplePoints(routes);const results=await Promise.allSettled(points.map(async point=>{const params=new URLSearchParams({point:`${point.latitude},${point.longitude}`});const response=await gatewayFetch(`/tomtom/traffic/flow?${params}`,{signal:controller.signal});if(!response.ok)throw new Error('Traffic unavailable');return parseTrafficSegment(await response.json(),routes);}));
   if(controller.signal.aborted)throw new Error('Traffic cancelled');const fulfilled=results.filter(r=>r.status==='fulfilled'),segments=results.flatMap(r=>r.status==='fulfilled'&&r.value?[r.value]:[]);const seen=new Set<string>();
   return {status:fulfilled.length===points.length?'available':fulfilled.length?'partial':'unavailable',segments:segments.filter(s=>{if(seen.has(s.id))return false;seen.add(s.id);return true;}),sampledPoints:points.length,updatedAt:Date.now()};
  }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}

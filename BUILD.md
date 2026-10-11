@@ -14,7 +14,7 @@ Nguồn chung là repo này. `release.json` giữ version 1.0.4, build 38 và ap
 
 ## Biến cấu hình
 
-Các khóa và file cấu hình hiện có đã được lưu vào Cloudflare Secrets Store `mymap-production`; xem [quản lý secret Cloudflare](docs/CLOUDFLARE_SECRETS.md). Việc lưu này chưa thay thế credentials CI/EAS hoặc chuyển các API gọi trực tiếp sang Worker proxy.
+Các khóa và file cấu hình hiện có đã được lưu vào Cloudflare Secrets Store `mymap-production`; xem [quản lý secret Cloudflare](docs/CLOUDFLARE_SECRETS.md). Provider maps/routing/traffic/ảnh đường phố đã chuyển sang Worker proxy có xác thực; mobile chỉ cấu hình `EXPO_PUBLIC_ROUTING_GATEWAY_URL`. Việc lưu secret chưa thay thế credentials CI/EAS. Cách triển khai và gate quét khóa nằm trong [hướng dẫn hiện hành](docs/BUILD.md#proxy-provider-qua-cloudflare).
 
 | Biến | Mục đích |
 |---|---|
@@ -37,7 +37,7 @@ PLACEMENT gồm `SMART`, `FRIENDS`, `TIMELINE`, `STATS`, `PROFILE`, `MEMORIES`, 
 
 ID AdMob public đã cập nhật theo ảnh chủ dự án cung cấp trong `config/admob.json`; không cần file `.env` riêng để nhận các ID này. Native dùng chung một ad unit cho các vị trí trên mỗi hệ điều hành; biến môi trường không rỗng có thể ghi đè từng vị trí. Chưa có banner ID nên banner dự phòng vẫn tắt. Test ads mặc định tắt; QA cần thiết bị thử được đăng ký hoặc bản test riêng.
 
-Amazon dùng **full Google Mobile Ads SDK**, hỗ trợ thiết bị không có Google Play theo [Google](https://developers.google.com/admob/android/sdk). Google Sign-In/FCM/Auto vẫn bị loại. Giữ consent trước khi khởi tạo/tải ads, xử lý no-fill và ẩn khi không có quảng cáo; không yêu cầu cài GMS. Các quyền Advertising ID/AdServices vẫn bị loại khỏi Amazon, nên không có quảng cáo cá nhân hóa qua những API này. Cần thử consent và tải native ads trên Fire thật; việc hiển thị còn phụ thuộc inventory và trạng thái xét duyệt AdMob. [Amazon Appstore được AdMob hỗ trợ](https://support.google.com/admob/answer/9989980).
+Amazon hiện tắt Google Mobile Ads native/facade theo giới hạn Fire; Google Sign-In/FCM/Auto cũng bị loại. ID Android được giữ trong cấu hình chung, nhưng không làm SDK quảng cáo hoạt động trên Fire. Xem [ngoại lệ và trạng thái kiểm chứng](docs/PARITY_PROGRESS.md).
 
 Trong EAS, tạo environment `production`, thêm public configuration đồng nhất và hai biến kiểu **file** `GOOGLE_SERVICES_JSON`, `GOOGLE_SERVICES_PLIST`. File Firebase bị Git ignore nên cần các biến file trên cloud. Token CI `EXPO_TOKEN` chỉ dùng trong secret manager.
 
@@ -88,7 +88,7 @@ Workflow XCTest iOS cũ vẫn được giữ để chạy thủ công, dùng fix
 
 ## Guard sau build
 
-`scripts/verify-artifacts.py` kiểm tra version/build/app ID, quyền theo `config/android-permissions.json`, backup/transfer bị chặn, release không debuggable, test AdMob ID bị từ chối, Amazon không có component FCM/Auto bắt buộc GMS. Cả Play và Amazon phải có AdMob application ID; provider khởi tạo Mobile Ads được phép trên Amazon. APK phải có chữ ký hợp lệ, không dùng certificate debug; khi so sánh Play/Amazon phải cùng certificate và bundle SHA-256. AAB kiểm tra manifest qua bundletool và chữ ký JAR.
+`scripts/verify-artifacts.py` kiểm tra version/build/app ID, quyền theo `config/android-permissions.json`, backup/transfer bị chặn, release không debuggable, test AdMob ID bị từ chối, Amazon không có component GMS/FCM/Auto/Ads. Artifact cũng phải qua gate quét provider credentials. APK phải có chữ ký hợp lệ, không dùng certificate debug; quy tắc signer từng store và parity bundle nằm trong [hướng dẫn hiện hành](docs/BUILD.md). AAB kiểm tra manifest qua bundletool và chữ ký JAR.
 
 iOS kiểm tra mô tả quyền tiếng Việt, background modes đúng `location/audio/processing`, version của widget/Watch, không có debug/preview dylib và các endpoint Metro đã biết. IPA signed cần provisioning; trên macOS kiểm thêm `codesign --verify --deep --strict` và distribution profile. Báo cáo chạy ngoài macOS không được hiểu là đã xác minh codesign. Kết quả ghi `dist/releases/verification.json`.
 

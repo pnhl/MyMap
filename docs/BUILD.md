@@ -29,7 +29,64 @@ Tạo keystore mới bằng keytool ở máy quản trị, password nhập tươ
 
 EAS Android dùng credentialsSource=local, tách `.signing/play/eas-credentials.json` và `.signing/amazon/eas-credentials.json`. Mỗi JSON theo schema EAS `android.keystore` chứa keystorePath, keystorePassword, keyAlias, keyPassword; đường dẫn trỏ keystore private của đúng store. Các lệnh npm build ở dưới staging file đã chọn thành credentials.json trong lúc gọi EAS rồi xóa trong finally; từ chối ghi đè credentials.json có sẵn. Gọi eas trực tiếp cần tự staging an toàn tương đương. CI bắt buộc secrets đúng store, không ngầm dùng khóa Google khi thiếu khóa Amazon. Không tạo/read credential thật trong lượt này.
 
-Cloudflare Secrets Store đã được cấu hình trước đây; xem CLOUDFLARE_SECRETS.md. Chưa có bridge tự động từ Secrets Store sang GitHub/EAS. Không tạo API trả plaintext secret cho app. EXPO_PUBLIC vẫn là dữ liệu nhúng client dù nguồn cấp nằm trong secret manager.
+Cloudflare Secrets Store đã được cấu hình trước đây; xem [CLOUDFLARE_SECRETS.md](CLOUDFLARE_SECRETS.md). Chưa có bridge tự động từ Secrets Store sang GitHub/EAS. Không tạo API trả plaintext secret cho app. `EXPO_PUBLIC_*` luôn là dữ liệu nhúng client dù nguồn cấp nằm trong secret manager. [PUBLIC_CONFIG.md](PUBLIC_CONFIG.md) kiểm kê mọi tên public và phân loại provider keys.
+
+## Proxy provider qua Cloudflare
+
+Mobile chỉ giữ base URL HTTPS `EXPO_PUBLIC_ROUTING_GATEWAY_URL`. Các khóa Stadia, TomTom, Mapillary, GraphHopper và Cesium không có biến `EXPO_PUBLIC_*` tương ứng nữa. Public style/tile/offline/DEM URLs cũng không được chứa key, signed token hoặc user/password. Build input guard từ chối tên biến provider public cũ và cấu hình URL chứa credentials; sửa `MYMAP_PUBLIC_ENV`/EAS public env theo `.env.example` mới trước khi build. Không khôi phục nguyên khối `MYMAP_MOBILE_BUILD_ENV`: bản lưu này có thể còn khóa của mobile cũ.
+
+Worker ở `cloudflare/geo-gateway/` xác minh Firebase ID token người dùng bằng chữ ký RS256, issuer/audience của project và hạn dùng; token anonymous bị từ chối. Guest dùng các nguồn OSM public. Không cần Firebase Admin private key. Gửi token bằng header Authorization, không đặt vào query URL. `GET /health` là endpoint dữ liệu công khai duy nhất; OPTIONS chỉ phục vụ CORS preflight. Health không đọc secret hoặc gọi provider. Các routes proxy `/route`, `/stadia/...`, `/tomtom/...`, `/mapillary/...`, `/cesium/terrain/...` chỉ chấp nhận method, path và tham số đã cho phép, với upstream host cố định. Cesium chỉ relay terrain asset 1, không nhận asset/upstream URL tùy ý. [Firebase token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens).
+
+`scripts/maplibre-privacy-patch.cjs` chặn native MapLibre request debug logs và thay error logs bằng thông báo cố định trên cả Android/iOS; SDK gốc ghi cả giá trị header. Expo config và native preparation áp dụng bản vá có kiểm tra phiên bản trước khi compile. Phải build lại native app để có bản vá này; OTA JavaScript trên binary cũ không sửa được native logging. Worker và app có deadline cho yêu cầu proxy; Cesium relay chuyển các terrain extensions đã cho phép sang upstream và giữ metadata availability.
+
+Durable Object `GEO_QUOTA`/`GeoQuota` áp dụng quota có trọng số theo UID (240 đơn vị/phút, 5.000/ngày) và toàn gateway (3.000/phút, 50.000/ngày); cửa sổ ngày theo UTC. Tile tốn ít hơn route/matrix/image; chi tiết trong README gateway. Hết quota trả HTTP 429 và `Retry-After`; app phải tôn trọng thời gian thử lại. Quota server không thay thế giới hạn ngân sách/hạn mức tại provider.
+
+Tên secret dành riêng cho gateway:
+
+| Secret Store name | Binding Worker | Provider |
+|---|---|---|
+| `MYMAP_STADIA_MAPS_API_KEY` | `STADIA_KEY` | Stadia raster/static maps |
+| `MYMAP_TOMTOM_TRAFFIC_KEY` | `TOMTOM_KEY` | TomTom routing, traffic, places, range, matrix |
+| `MYMAP_MAPILLARY_ACCESS_TOKEN` | `MAPILLARY_TOKEN` | Mapillary tiles/metadata/image relay |
+| `MYMAP_GRAPHHOPPER_KEY` | `GRAPHHOPPER_KEY` | GraphHopper routing, nếu bật |
+| `MYMAP_CESIUM_ION_TOKEN` | `CESIUM_ION_TOKEN` | Cesium terrain asset cố định, nếu bật |
+
+Không đưa signing secrets, Firebase JSON/plist hoặc `MYMAP_MOBILE_BUILD_ENV` vào bindings của gateway. Các secret đã lưu cần binding Secrets Store; chỉ tên/ID được commit, giá trị lấy qua `.get()` phía Worker. [Cloudflare bindings](https://developers.cloudflare.com/secrets-store/integrations/workers/).
+
+Ba binding Stadia/TomTom/Mapillary đã có trong `wrangler.jsonc`. GraphHopper/Cesium tùy chọn: thêm Secrets Store binding như bảng, hoặc nhập ordinary Worker secrets tên `GRAPHHOPPER_KEY`, `CESIUM_ION_TOKEN` bằng `wrangler secret put <NAME>` ở thư mục gateway. Worker hỗ trợ cả hai cách; không thêm secret vào `vars`. `EXPO_PUBLIC_CESIUM_TERRAIN_ENABLED=false` mặc định, chỉ bật sau khi secret server đã được cấp.
+
+Triển khai bằng Wrangler đã khóa phiên bản trong package lock riêng:
+
+```sh
+npm ci --prefix cloudflare/geo-gateway
+node cloudflare/geo-gateway/node_modules/wrangler/bin/wrangler.js login
+npm run check --prefix cloudflare/geo-gateway
+npm run deploy --prefix cloudflare/geo-gateway
+```
+
+Trước deploy, xác nhận `FIREBASE_PROJECT_ID` trong `cloudflare/geo-gateway/wrangler.jsonc` khớp project ID công khai của Firebase mobile. Kiểm tra secret bindings; giữ `GEO_QUOTA` binding và SQLite migration `geo-quota-v1`. Project ID không phải secret; không đọc Firebase private files để tìm nó trong phiên không được phép dùng credentials. `ALLOWED_ORIGINS` hiện là `https://app.mymap.local,null` cho WebView của app; native request không có Origin cũng được chấp nhận. Origin `null` chỉ đáp ứng CORS của local WebView, không thay thế xác thực token. Nếu dùng browser ở origin khác, thêm chính xác origin vào danh sách phân cách bằng dấu phẩy, không dùng wildcard. `ROUTING_PROVIDERS` mặc định `tomtom,osrm,valhalla,graphhopper`. Giữ observability logs tắt để tránh thu thập header/token hoặc URL chứa provider key. Đặt base URL đã deploy vào public env chung cho cả ba bản.
+
+Xác minh production chỉ qua endpoint không trả khóa:
+
+```sh
+curl --fail --silent --show-error https://<GATEWAY_HOST>/health
+```
+
+Đáp ứng health chỉ chứng minh Worker đang phục vụ, không chứng minh mọi provider key/quota đã cấu hình đúng. Kiểm tra auth, allowlist, rate limit và redaction bằng tests với token/key giả; không in token, provider URL có key hoặc raw upstream error khi debug.
+
+Sau build, chạy gate cho bundle/Hermes và mọi native release:
+
+```sh
+npm run check:provider-secrets -- <BUNDLE_OR_HBC> <GOOGLE_AAB> <GOOGLE_APK> <AMAZON_APK> <SIGNED_IPA> <UNSIGNED_IPA>
+```
+
+`npm run check:public-config` chạy trước build để chặn public input sai. `scripts/scan-provider-secrets.py` và artifact verifier quét nội dung release, bao gồm mọi ZIP entry/native binary strings/Hermes, và FAIL khi thấy định dạng khóa provider, credential trong provider URL hoặc biến public provider đã cấm. Gate báo lỗi đã che chi tiết, không in chuỗi khớp. CI xuất và quét Hermes Android/iOS cùng toàn bộ resources; các job release quét native artifacts; verifier áp dụng cùng gate cho cả năm release artifacts. Không đổi đuôi file hoặc bỏ gate để phát hành. Scanner dùng nhận dạng định dạng/ngữ cảnh, không thể phân biệt mọi bare UUID/hash với secret; việc loại hẳn secret inputs và dùng proxy là lớp bảo vệ chính.
+
+## Xoay khóa sau bản chuyển proxy
+
+Sau khi Worker và bản mới cho iOS/Google/Amazon đã sẵn sàng, xoay các khóa **đã từng nhúng trong app/config public/URL**: `MYMAP_STADIA_MAPS_API_KEY`, `MYMAP_TOMTOM_TRAFFIC_KEY`, `MYMAP_MAPILLARY_ACCESS_TOKEN`, `MYMAP_GRAPHHOPPER_KEY`, `MYMAP_CESIUM_ION_TOKEN`. Tạo khóa thay thế với quyền tối thiểu, cập nhật binding/secret server, phát hành bản mobile không có khóa, rồi thu hồi khóa cũ theo kế hoạch chuyển phiên bản. Nếu provider không cho hai khóa song song, lên lịch bước chuyển và thông báo việc bản cũ có thể mất tính năng provider.
+
+Quét lại đủ năm artifacts phát hành và bundle đã xuất trước khi bàn giao; xóa các biến provider public cũ khỏi GitHub/EAS/local build env bằng công cụ quản trị, không dán giá trị vào chat hoặc commit. Xử lý bản backup `MYMAP_MOBILE_BUILD_ENV` như cấu hình legacy chứa khóa đã thu hồi; không dùng lại làm input. Thu hồi khóa mới là bước vô hiệu hóa bí mật trong bundle cũ; phát hành bản mới không xóa khóa khỏi những APK/IPA người dùng đã có. Không cần xoay AdMob app/unit IDs, OAuth client IDs hoặc Supabase publishable key chỉ vì chúng là public.
 
 ## Lệnh build và bàn giao
 

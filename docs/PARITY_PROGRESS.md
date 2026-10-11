@@ -91,6 +91,14 @@ Mã trạng thái: **V = DONE-VERIFIED** chỉ trong phạm vi test nêu ở c�
 | 8 | Dev strings | DONE-VERIFIED tests/hai unsigned APK; DONE-UNVERIFIED release set | JS/resources/native classification, Spotube loopback giữ; không decompile Hermes để chứng minh reachability hoàn toàn |
 | 9 | Fire thiếu GMS | DONE-VERIFIED boundary/manifest; DONE-UNVERIFIED device | Native ClassLoader tests và Kotlin compile; cần cold start/paths trên Fire thật |
 
+## Bổ sung proxy provider — 2026-10-11
+
+Source dùng chung cho iOS, Google Play và Amazon đã bỏ năm biến public chứa credential Stadia/TomTom/Mapillary/GraphHopper/Cesium. [PUBLIC_CONFIG.md](PUBLIC_CONFIG.md) kiểm kê tên biến; [BUILD.md](BUILD.md#proxy-provider-qua-cloudflare) ghi tên secret server, deployment, quota và kế hoạch xoay khóa. App dùng gateway HTTPS với Firebase ID token trong header; guest dùng OSM. Worker xác minh token đăng nhập, giới hạn đường dẫn/đầu vào/upstream cố định, quota theo UID và toàn gateway, deadline và lỗi đã che thông tin nhạy cảm. MapLibre native Android/iOS được vá để không ghi log header hoặc URL chứa token.
+
+Bằng chứng local với cấu hình/token/key giả: 378/378 Node tests (gồm 17 Worker security tests), 16/16 Python tests, lint, TypeScript app/Worker, source/public config guards và Wrangler dry-run đều đạt. Android và iOS Hermes export từ source cuối đã quét cả 56 bundle/resources, `providerCredentials=0`. Native MapLibre `compileReleaseKotlin` thành công với dependency verification strict. Gate CI quét Hermes và mọi entry của APK/AAB/IPA, kể cả native binaries, trước kiểm chữ ký; lỗi không in giá trị khớp.
+
+Chưa deploy Worker production, gọi provider thật, kiểm health production hoặc tạo bộ native release có chữ ký trong lượt này. Chưa có base URL production để kiểm health. Không đọc giá trị `.env`, `.dev.vars`, signing hay Firebase credential files. Ba binding secret Stadia/TomTom/Mapillary đã khai báo bằng tên; GraphHopper/Cesium tùy chọn cần cấp binding phía server trước khi bật. GitHub Actions hiện không có secret/variable cấp repo; EAS và các scope khác chưa xác minh. Cần cấu hình public gateway URL, triển khai Worker và xoay khóa lịch sử theo hướng dẫn trước phát hành; bản native phải build lại để nhận bản vá logging.
+
 ## Việc chủ dự án cần thực hiện
 
 1. Xác minh/giới hạn/rotate các chuỗi API key lịch sử nếu là key thật; không gửi key vào chat.

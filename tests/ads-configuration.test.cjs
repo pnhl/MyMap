@@ -12,6 +12,8 @@ function config(store, values = {}) {
   const factory = loadService('app.config.ts', {
     'node:fs': {existsSync:()=>false, readFileSync:fs.readFileSync},
     'node:process': {loadEnvFile:()=>{throw Error('Tests must not load private environment files');}},
+    './scripts/provider-secret-policy.cjs':require('../scripts/provider-secret-policy.cjs'),
+    './scripts/maplibre-privacy-patch.cjs':{applyPatch:()=>{}},
   }, {process:{env:{MYMAP_STORE:store, MYMAP_RELEASE:'true', ...values}}}).default;
   return factory({config:JSON.parse(fs.readFileSync('app.json','utf8')).expo});
 }

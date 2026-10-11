@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 function moduleFromSource(relative, mocks = {}) {
+  mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks);
   mocks={...mocks,'./traveledTrace':require('./helpers.cjs').loadPure('src/services/traveledTrace.ts')};
   const filename = path.resolve(__dirname, '..', relative);
   const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {

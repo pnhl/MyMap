@@ -1,12 +1,12 @@
 # Nâng cấp bản đồ và trình phát MyMap
 
-Thay đổi đã được thực hiện trong mã nguồn. Chưa đóng gói APK phát hành mới; các APK 1.0.2 trong `dist/releases` chưa có phần nâng cấp này.
+Mô tả tính năng và bằng chứng thử nghiệm ở tài liệu này là snapshot ngày 08/10/2026, trước bản chuyển proxy. Phần cấu hình đã cập nhật ngày 11/10/2026; build phát hành hiện tại theo [BUILD.md](BUILD.md) và `release.json`, không theo APK 1.0.2 cũ.
 
 ## Tính năng đã bổ sung
 
 - Tìm địa điểm bằng TomTom Fuzzy Search, gợi ý sau khi ngừng nhập 800 ms; lịch sử tìm kiếm và địa điểm đã lưu vẫn có thể xem trên máy.
 - Khám phá quanh vị trí hiện tại: cây xăng, quán ăn, cà phê, nhà thuốc, bãi đỗ xe và trạm sạc EV. Bệnh viện cũng được hiển thị trong lớp địa điểm trên bản đồ. Các địa điểm có tọa độ thật, không phải dữ liệu mẫu.
-- TomTom Routing là nguồn ưu tiên khi có key. Hỗ trợ ô tô, xe máy, xe đạp và đi bộ ở tầng dịch vụ; giao diện dẫn đường hiện có lựa chọn ô tô/xe máy. Giữ tùy chọn tránh cao tốc, phà và đường chưa trải nhựa.
+- TomTom Routing là nguồn ưu tiên qua gateway khi người dùng đã đăng nhập và Worker đã có secret TomTom. Hỗ trợ ô tô, xe máy, xe đạp và đi bộ ở tầng dịch vụ; giao diện dẫn đường hiện có lựa chọn ô tô/xe máy. Giữ tùy chọn tránh cao tốc, phà và đường chưa trải nhựa.
 - Yêu cầu tối đa hai tuyến thay thế, tổng cộng tối đa ba tuyến. Có thể chọn bằng thẻ hoặc chạm tuyến trên bản đồ. Số tuyến thực tế do dịch vụ quyết định.
 - ETA theo giao thông, mức chậm do giao thông và nhãn tuyến có thu phí. Đoạn đỏ lấy từ các section JAM/ROAD_CLOSURE có chỉ số tọa độ hợp lệ của chính tuyến TomTom. Không suy diễn kẹt xe từ tốc độ GPS của người dùng.
 - Hiển thị giờ cập nhật và nút làm mới tuyến/giao thông. Dữ liệu là lần cập nhật gần nhất, không phải luồng tức thời liên tục. Khi đi lệch tuyến, ứng dụng tính lại tuyến như trước.
@@ -19,9 +19,9 @@ Thay đổi đã được thực hiện trong mã nguồn. Chưa đóng gói APK
 
 ## Cấu hình và hạn mức
 
-Key được cấu hình ở `.env` bằng `EXPO_PUBLIC_TOMTOM_TRAFFIC_KEY`. File này đã nằm trong `.gitignore`. Các biến `EXPO_PUBLIC_*` được đóng vào ứng dụng; đây không phải nơi giữ bí mật máy chủ. Cần quản lý giới hạn và hạn mức của key trong tài khoản TomTom trước phát hành rộng rãi.
+Khóa TomTom chỉ nằm trong Cloudflare secret `MYMAP_TOMTOM_TRAFFIC_KEY`, binding Worker `TOMTOM_KEY`. Public `.env`/CI chỉ có `EXPO_PUBLIC_ROUTING_GATEWAY_URL`; không chứa khóa trong biến hoặc URL. App gửi Firebase ID token đã đăng nhập qua header Authorization đến các routes TomTom cố định của Worker. Guest dùng OSM public. Xem [PUBLIC_CONFIG.md](PUBLIC_CONFIG.md), [CLOUDFLARE_SECRETS.md](CLOUDFLARE_SECRETS.md) và [BUILD.md](BUILD.md) để triển khai và xoay khóa đã nhúng trong bản cũ.
 
-Theo trang giá TomTom được kiểm tra ngày 08/10/2026, Search API có mức miễn phí 2.500 request/tháng, Routing và Traffic Flow Segment có mức 20.000 request/tháng cho từng API. Hạn mức thực tế và khả năng tính phí vượt mức phụ thuộc gói tài khoản/key; ứng dụng không đọc được số quota toàn tài khoản và chưa có giới hạn chi tiêu trên máy chủ.
+Snapshot giá TomTom ngày 08/10/2026 ghi Search API 2.500 request/tháng, Routing và Traffic Flow Segment 20.000 request/tháng cho từng API; đây không phải cam kết hạn mức hiện tại. Hạn mức thực tế và khả năng tính phí vượt mức phụ thuộc gói tài khoản/provider. Worker hiện có quota theo UID và toàn gateway, trả 429 cùng `Retry-After`; quota này không đọc số dư hay thay thế giới hạn chi tiêu trong tài khoản TomTom. Chi tiết mức trần có trọng số trong BUILD.md.
 
 Ứng dụng lưu đệm tìm kiếm/POI 10 phút, tuyến giao thông 2 phút trong bộ nhớ; không lưu tuyến TomTom có traffic vào cache lâu dài. HTTP 401/403/429 tạm dừng gọi lại nguồn TomTom tương ứng 5 phút, chuyển sang nguồn dự phòng. Làm mới chủ động vẫn cần Internet và dùng quota. Với tuyến dự phòng OSM, chỉ lấy tối đa sáu mẫu traffic theo yêu cầu; không tự polling liên tục.
 
@@ -45,20 +45,10 @@ Tài liệu chính thức:
 
 ## Đóng gói sau khi kiểm tra thiết bị thật
 
-Giữ khóa ký hiện tại để cài cập nhật. Khi cần phát hành bản mới, tăng `expo.version`, `android.versionCode`, phiên bản `package.json`/`package-lock.json` và `versionName`/`versionCode` trong `android/app/build.gradle` đồng bộ trước khi chạy:
+Giữ signing identity hiện tại để cài cập nhật. Nguồn version là `release.json`; cập nhật bằng `node scripts/bump-release.cjs [x.y.z]`, không sửa độc lập generated native files. Chạy pipeline ba cửa hàng và gate theo [BUILD.md](BUILD.md):
 
-```powershell
-./scripts/build-release.ps1 -Channel both -Architectures 'armeabi-v7a,arm64-v8a'
+```sh
+npm run build:all
 ```
 
-Cấu trúc đầu ra:
-
-```text
-dist/releases/
-  MyMap-<version>-android-release.apk
-  MyMap-<version>-android-release.apk.sha256
-  MyMap-<version>-amazon-release.apk
-  MyMap-<version>-amazon-release.apk.sha256
-```
-
-Sau build phải kiểm tra chữ ký, applicationId, versionCode/versionName, ABI, alignment và cài cập nhật trên bản cũ. Không đưa `.env`, `.signing`, keystore hay các log riêng tư vào tệp bàn giao công khai.
+Sau build phải đủ năm artifacts, provenance, kiểm tra chữ ký, applicationId, version, ABI/alignment, JS parity và provider-secret scan; cài cập nhật trên bản cũ theo checklist. Không đưa `.env`, `.signing`, keystore hay các log riêng tư vào tệp bàn giao công khai.

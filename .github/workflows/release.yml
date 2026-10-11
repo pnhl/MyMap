@@ -21,7 +21,13 @@ jobs:
           node-version: '24.14.0'
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: node scripts/maplibre-privacy-patch.cjs
       - run: node scripts/check-source-secrets.cjs
+      - run: npm run check:public-config
+      - name: Check Worker without production credentials
+        run: |
+          npm ci --ignore-scripts --prefix cloudflare/geo-gateway
+          npm run check --prefix cloudflare/geo-gateway
       - run: node scripts/release-check.cjs --source-only
       - run: npm run lint
       - run: npm run typecheck
@@ -35,6 +41,18 @@ jobs:
           npx expo prebuild --platform android --no-install
       - run: npm test
       - run: python3 -m unittest discover -s tests -p '*_test.py'
+      - name: Export credential-free Android and iOS Hermes bundles
+        env:
+          MYMAP_STORE: play
+          APP_STORE_TARGET: play
+          MYMAP_RELEASE: 'false'
+          EXPO_NO_DOTENV: '1'
+          EAS_BUILD: 'false'
+          EXPO_PUBLIC_ROUTING_GATEWAY_URL: https://gateway.example.test
+          EXPO_PUBLIC_CESIUM_TERRAIN_ENABLED: 'true'
+        run: npx expo export --platform android --platform ios --output-dir .local/provider-check
+      - name: Scan exported bundles and all packaged resources for provider credentials
+        run: python3 scripts/scan-provider-secrets.py .local/provider-check
   native-fixtures:
     needs: checks
     runs-on: ubuntu-latest
@@ -139,10 +157,12 @@ jobs:
             cp android/app/build/outputs/bundle/googleRelease/*.aab dist/releases/play.aab
             cp companions/wear/build/outputs/apk/release/*.apk dist/releases/wear.apk
             cp companions/wear/build/outputs/bundle/release/*.aab dist/releases/wear.aab
+            python3 scripts/scan-provider-secrets.py android/app/build/generated/assets/react/googleRelease dist/releases/play.apk dist/releases/play.aab dist/releases/wear.apk dist/releases/wear.aab
             node scripts/write-artifact-provenance.cjs dist/releases/play.apk dist/releases/play.aab
             python3 scripts/verify-artifacts.py --play dist/releases/play.apk --wear dist/releases/wear.apk --commit "$GITHUB_SHA"
           else
             cp android/app/build/outputs/apk/amazon/release/*.apk dist/releases/amazon.apk
+            python3 scripts/scan-provider-secrets.py android/app/build/generated/assets/react/amazonRelease dist/releases/amazon.apk
             node scripts/write-artifact-provenance.cjs dist/releases/amazon.apk
             python3 scripts/verify-artifacts.py --amazon dist/releases/amazon.apk --commit "$GITHUB_SHA"
           fi

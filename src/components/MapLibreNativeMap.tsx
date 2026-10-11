@@ -1,7 +1,8 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Text } from '../ui/Text';
 import {
+  TransformRequestManager,
   Camera,
   GeoJSONSource,
   RasterSource,
@@ -12,6 +13,8 @@ import {
   type StyleSpecification,
 } from '@maplibre/maplibre-react-native';
 import { env } from '../config/env';
+import {gatewayUrl} from '../services/geoGateway';
+import {useGatewaySession} from '../hooks/useGatewaySession';
 import { DEFAULT_MAP_PROVIDER, is3DMapProvider, isOpenMapProvider, openMapStyleUrl } from '../config/mapProviders';
 import {rawTraveledSegments} from '../services/traveledTrace';
 import type { LeafletMapProps, LeafletMapRef } from './LeafletMap';
@@ -76,11 +79,11 @@ function tileUrl(provider: LeafletMapProps['tileProvider']): string {
   if (provider === 'satellite') {
     return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   }
-  if ((provider === 'stadia_dark' || provider === 'carto_dark') && env.stadiaMapsKey) {
-    return `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}@2x.png?api_key=${env.stadiaMapsKey}`;
+  if ((provider === 'stadia_dark' || provider === 'carto_dark') && env.routingGatewayUrl) {
+    return gatewayUrl('/stadia/tiles/alidade_smooth_dark/{z}/{x}/{y}@2x.png');
   }
-  if (provider === 'stadia_smooth' && env.stadiaMapsKey) {
-    return `https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}@2x.png?api_key=${env.stadiaMapsKey}`;
+  if (provider === 'stadia_smooth' && env.routingGatewayUrl) {
+    return gatewayUrl('/stadia/tiles/alidade_smooth/{z}/{x}/{y}@2x.png');
   }
   return env.osmTileUrl;
 }
@@ -151,6 +154,17 @@ export const MapLibreNativeMap = forwardRef<LeafletMapRef, LeafletMapProps>(func
   },
   ref,
 ) {
+  const session = useGatewaySession();
+  const [installedToken, setInstalledToken] = useState('');
+  const headerId = useRef(`geo-gateway-${Math.random().toString(36).slice(2)}`).current;
+  useEffect(() => {
+    if (env.routingGatewayUrl && session.token) {
+      const match = '^' + gatewayUrl('/').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      TransformRequestManager.addHeader({id: headerId, match, name: 'Authorization', value: `Bearer ${session.token}`});
+    } else TransformRequestManager.removeHeader(headerId);
+    setInstalledToken(session.token);
+    return () => TransformRequestManager.removeHeader(headerId);
+  }, [session.token, headerId]);
   const camera = useRef<CameraRef>(null);
   const ready=useRef(false);
   const queuedCamera=useRef<(()=>Promise<void>)|null>(null);
@@ -166,7 +180,8 @@ export const MapLibreNativeMap = forwardRef<LeafletMapRef, LeafletMapProps>(func
     initialRegion?.latitude ?? currentPosition?.latitude ?? 21.028511,
   ];
 
-  const style = useMemo(() => mapStyle(tileProvider), [tileProvider]);
+  const effectiveProvider = !session.token && (tileProvider==='stadia_dark'||tileProvider==='stadia_smooth'||tileProvider==='carto_dark') ? 'osm' : tileProvider;
+  const style = useMemo(() => mapStyle(effectiveProvider), [effectiveProvider]);
   useEffect(()=>{
     ready.current=false;onMapError?.(null);
     loadTimer.current=setTimeout(()=>onMapError?.(isOpenMapProvider(tileProvider||'') ? 'OpenFreeMap tải quá chậm hoặc mất mạng (tile/sprite/glyph). Chạm để đổi sang OSM dự phòng.' : 'Bản đồ tải chậm. Bấm để đổi lớp bản đồ hoặc kiểm tra kết nối.'),15000);
@@ -246,8 +261,10 @@ export const MapLibreNativeMap = forwardRef<LeafletMapRef, LeafletMapProps>(func
     },
   }), [currentPosition,threeD]);
 
+  if (installedToken !== session.token) return <View style={StyleSheet.absoluteFill}/>;
   return (
     <Map
+      key={session.owner || 'public-map'}
       style={StyleSheet.absoluteFill}
       mapStyle={style}
       attribution
@@ -285,7 +302,7 @@ export const MapLibreNativeMap = forwardRef<LeafletMapRef, LeafletMapProps>(func
       </GeoJSONSource>}
 
       {roadLines.length>0&&<GeoJSONSource id="road-infrastructure-source" data={traceFeature(roadLines)}><Layer id="road-infrastructure" type="line" paint={{'line-color':'#C084FC','line-width':3,'line-opacity':.55}}/></GeoJSONSource>}
-      {!!trafficTileUrl&&<RasterSource id="traffic-flow-tiles" tiles={[trafficTileUrl]} tileSize={256} maxzoom={18} attribution="© TomTom"><Layer id="traffic-flow-layer" type="raster" paint={{'raster-opacity':.85}}/></RasterSource>}
+      {!!trafficTileUrl&&!!session.token&&<RasterSource id="traffic-flow-tiles" tiles={[trafficTileUrl]} tileSize={256} maxzoom={18} attribution="© TomTom"><Layer id="traffic-flow-layer" type="raster" paint={{'raster-opacity':.85}}/></RasterSource>}
       {trafficSegments.length>0&&<GeoJSONSource id="traffic-route-source" data={traceFeature(trafficSegments)}><Layer id="traffic-route" type="line" paint={{'line-color':'#EF4444','line-width':7,'line-opacity':1}}/></GeoJSONSource>}
       {places.slice(0,40).map(place=><Marker key={`poi-${place.provider||'osm'}-${place.placeId}`} id={`poi-${place.provider||'osm'}-${place.placeId}`} lngLat={[place.longitude,place.latitude]} anchor="bottom" onPress={()=>onPlacePress?.(place)}><View style={{backgroundColor:'#FFFFFFF2',paddingHorizontal:7,paddingVertical:4,borderRadius:10,borderWidth:1,borderColor:'#C4CCD8',maxWidth:128}} accessibilityLabel={place.displayName}><Text numberOfLines={1} style={{fontSize:10,color:'#253550',fontWeight:'700'}}>{place.kind==='road_report'?'🔴':place.kind==='traffic_sign'?'⚠':place.kind==='street_image'?'📷':place.kind==='dead_end'?'⊥':place.kind==='infrastructure'?'▤':place.kind==='parking'?'P':place.kind==='charging_station'?'⚡':place.kind==='fuel'?'⛽':place.kind==='cafe'?'☕':place.kind==='restaurant'?'🍴':'✚'} {place.displayName.split(',')[0]}</Text></View></Marker>)}
 

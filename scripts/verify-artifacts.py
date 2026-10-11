@@ -2,6 +2,7 @@
 import argparse, hashlib, json, os, pathlib, plistlib, re, subprocess, tempfile, zipfile, sys
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent))
 from artifact_checks import dex_startup, native_libraries, classify_dev_strings, embedded_inputs, archive_dev_strings
+from provider_secrets import scan_path
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RELEASE = json.loads((ROOT / 'release.json').read_text())
 ANDROID_NS = '{http://schemas.android.com/apk/res/android}'
@@ -29,6 +30,7 @@ def android_tool(name):
     return str(candidates[0])
 
 def apk(path, store, commit=None):
+    credentials=scan_path(path)
     aapt = android_tool('aapt2')
     badging = command([aapt, 'dump', 'badging', str(path)])
     match = re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging)
@@ -66,9 +68,10 @@ def apk(path, store, commit=None):
             require('exclude' in rules and all(domain in rules for domain in ['database','sharedpref','root','file','external']),'Backup rule does not exclude private data: '+rule)
     command([android_tool('zipalign'),'-c','-P','16','4',str(path)])
     verify_provenance(path,inputs,commit)
-    return {'store':store, 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'jsSha256':hashlib.sha256(bundle).hexdigest(), 'signerSha256':cert.group(1).lower(), 'permissions':sorted(permissions),'inputs':inputs,'abis':abis,'startup':dex,'devStrings':dev}
+    return {'store':store, 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'jsSha256':hashlib.sha256(bundle).hexdigest(), 'signerSha256':cert.group(1).lower(), 'permissions':sorted(permissions),'inputs':inputs,'abis':abis,'startup':dex,'devStrings':dev,'providerCredentials':credentials}
 
 def ipa(path, unsigned=False, commit=None):
+    credentials=scan_path(path)
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         require(not any(n.endswith('.debug.dylib') or pathlib.PurePosixPath(n).name == '__preview.dylib' for n in names), 'Debug/preview dylib in IPA')
@@ -126,9 +129,10 @@ def ipa(path, unsigned=False, commit=None):
             require(value.get('sha256')==hashlib.sha256(path.read_bytes()).hexdigest() and value.get('commit')==inputs['commit'] and value.get('targets')==plists and value.get('signatureVerified') is True,'Invalid macOS signature verification proof')
             signature_verified=True
     if commit and not unsigned:require(signature_verified,'Signed IPA needs macOS signing verification or its matching proof')
-    return {'store':'ios-unsigned' if unsigned else 'ios', 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'unsigned':unsigned, 'signatureVerified':signature_verified,'inputs':inputs,'devStrings':dev}
+    return {'store':'ios-unsigned' if unsigned else 'ios', 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'unsigned':unsigned, 'signatureVerified':signature_verified,'inputs':inputs,'devStrings':dev,'providerCredentials':credentials}
 
 def wear_apk(path):
+    credentials=scan_path(path)
     badging=command([android_tool('aapt2'),'dump','badging',str(path)])
     match=re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",badging)
     require(match and match.groups()==(RELEASE['applicationId'],str(RELEASE['build']),RELEASE['version']),'Wear version/package mismatch')
@@ -139,9 +143,10 @@ def wear_apk(path):
     signature=command([android_tool('apksigner'),'verify','--verbose','--print-certs',str(path)])
     require('CN=Android Debug' not in signature,'Wear uses a debug signing certificate')
     cert=re.search(r'Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]+)',signature);require(cert,'Missing Wear signer')
-    return {'store':'wear','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'signerSha256':cert.group(1).lower()}
+    return {'store':'wear','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'signerSha256':cert.group(1).lower(),'providerCredentials':credentials}
 
 def aab(path, commit=None):
+    credentials=scan_path(path)
     import xml.etree.ElementTree as ET
     jar = os.environ.get('BUNDLETOOL_JAR')
     require(jar, 'Set BUNDLETOOL_JAR to validate an AAB manifest')
@@ -165,7 +170,7 @@ def aab(path, commit=None):
         inputs=embedded_inputs(archive.read('base/assets/mymap-release-inputs.json'),RELEASE,commit)
         dex=dex_startup(archive,'base/dex/');abis=native_libraries(archive,'base/lib/');dev=archive_dev_strings(archive)
     verify_provenance(path,inputs,commit)
-    return {'store':'play-aab','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'jsSha256':hashlib.sha256(bundle).hexdigest(),'inputs':inputs,'startup':dex,'abis':abis,'devStrings':dev}
+    return {'store':'play-aab','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'jsSha256':hashlib.sha256(bundle).hexdigest(),'inputs':inputs,'startup':dex,'abis':abis,'devStrings':dev,'providerCredentials':credentials}
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--ios',type=pathlib.Path);p.add_argument('--ios-unsigned',type=pathlib.Path);p.add_argument('--play',type=pathlib.Path);p.add_argument('--amazon',type=pathlib.Path);p.add_argument('--wear',type=pathlib.Path);p.add_argument('--aab',type=pathlib.Path);p.add_argument('--unsigned',action='store_true');p.add_argument('--commit');p.add_argument('--complete',action='store_true');args=p.parse_args()

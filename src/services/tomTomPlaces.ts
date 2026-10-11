@@ -1,3 +1,4 @@
+import {gatewayFetch,gatewayCacheScope} from './geoGateway';
 import {env} from '../config/env';
 import type {OsmSearchResult} from './openStreetMap';
 
@@ -18,14 +19,14 @@ export function parseTomTomPlaces(data:any):OsmSearchResult[]{
  });
 }
 async function requestPlaces(path:string,parameters:Record<string,string>,signal?:AbortSignal){
- if(!env.tomTomTrafficKey||Date.now()<blockedUntil)throw new Error('Place service unavailable');
+ if(!env.routingGatewayUrl||Date.now()<blockedUntil)throw new Error('Place service unavailable');
  if(signal?.aborted)throw new Error('Search cancelled');
- const cacheKey=path+JSON.stringify(parameters),saved=cache.get(cacheKey);
+ const cacheKey=gatewayCacheScope()+path+JSON.stringify(parameters),saved=cache.get(cacheKey);
  if(saved&&Date.now()-saved.at<600000)return saved.places;
  const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(abort,12000);
  try{
-  const query=new URLSearchParams({...parameters,key:env.tomTomTrafficKey,language:'vi-VN'});
-  const response=await fetch(`https://api.tomtom.com/search/2/${path}.json?${query}`,{signal:controller.signal});
+  const query=new URLSearchParams(parameters);
+  const response=await gatewayFetch(`/tomtom/${path}?${query}`,{signal:controller.signal});
   if(!response.ok){if([401,403,429].includes(response.status))blockedUntil=Date.now()+300000;throw new Error('Place service unavailable');}
   const places=parseTomTomPlaces(await response.json());if(controller.signal.aborted)throw new Error('Search cancelled');
   cache.set(cacheKey,{at:Date.now(),places});if(cache.size>40)cache.delete(cache.keys().next().value!);return places;
@@ -33,9 +34,9 @@ async function requestPlaces(path:string,parameters:Record<string,string>,signal
 }
 export function searchTomTomPlaces(query:string,position?:{latitude:number;longitude:number},signal?:AbortSignal){
  if(query.trim().length<2)return Promise.resolve([]);
- return requestPlaces(`search/${encodeURIComponent(query.trim())}`,{limit:'10',typeahead:'true',...(position?{lat:position.latitude.toFixed(3),lon:position.longitude.toFixed(3)}:{})},signal);
+ return requestPlaces('search',{query:query.trim(),limit:'10',typeahead:'true',...(position?{lat:position.latitude.toFixed(3),lon:position.longitude.toFixed(3)}:{})},signal);
 }
 export function nearbyTomTomPlaces(latitude:number,longitude:number,category?:NearbyCategory,signal?:AbortSignal){
  if(!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(longitude)||Math.abs(longitude)>180)return Promise.resolve([]);
- return requestPlaces('nearbySearch/',{lat:latitude.toFixed(3),lon:longitude.toFixed(3),radius:category?'5000':'2000',limit:category?'20':'40',categorySet:category?TOMTOM_CATEGORIES[category]:Object.values(TOMTOM_CATEGORIES).join(',')},signal);
+ return requestPlaces('nearby',{lat:latitude.toFixed(3),lon:longitude.toFixed(3),radius:category?'5000':'2000',limit:category?'20':'40',categorySet:category?TOMTOM_CATEGORIES[category]:Object.values(TOMTOM_CATEGORIES).join(',')},signal);
 }

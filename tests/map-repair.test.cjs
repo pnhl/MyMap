@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const prefs = {avoidFerries:false,avoidHighways:false,avoidUnpaved:false};
 function load(relative, globals={}, mocks={}) {
+  mocks=require('./gateway-fixtures.cjs').withGatewayMocks(mocks,globals);
   const filename=path.resolve(__dirname,'../src',relative);
   const module={exports:{}};
   const code=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;

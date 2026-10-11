@@ -1,12 +1,15 @@
-import React, { useRef, useImperativeHandle, forwardRef, useEffect, useCallback, useState } from 'react';
+import {gatewayUrl} from '../services/geoGateway';
+import {gatewayWebPrelude} from '../services/gatewayWebResources';
+import {useGatewaySession} from '../hooks/useGatewaySession';
+import React, { useRef, useImperativeHandle, forwardRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { LEAFLET_CSS, LEAFLET_JS, LEAFLET_HEAT_JS } from './leafletBundle';
 import { env } from '../config/env';
 
-const stadiaKey = env.stadiaMapsKey;
-const HEATMAP_TILE_URL = stadiaKey
-  ? `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${stadiaKey}`
+const hasGateway = Boolean(env.routingGatewayUrl);
+const HEATMAP_TILE_URL = hasGateway
+  ? gatewayUrl('/stadia/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png')
   : 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 export interface LeafletHeatmapRef {
@@ -32,7 +35,7 @@ interface Props {
   hexagons?: [number, number][][];
 }
 
-function generateHeatmapHtml(): string {
+function generateHeatmapHtml(token: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -101,6 +104,7 @@ function generateHeatmapHtml(): string {
 <body>
   <div id="map"></div>
   <script>
+    ${gatewayWebPrelude(token)}
     var map;
     var heatLayer = null;
     var markers = [];
@@ -131,9 +135,9 @@ function generateHeatmapHtml(): string {
           worldCopyJump: true
         });
 
-        L.tileLayer('${HEATMAP_TILE_URL}', {
+        leafletResourceLayer(gatewayToken?${JSON.stringify(HEATMAP_TILE_URL)}:${JSON.stringify(env.osmTileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png')}, {
           maxZoom: 20,
-          attribution: '&copy; OpenStreetMap contributors &copy; '+${JSON.stringify(stadiaKey?'Stadia Maps':'CARTO')}
+          attribution: '&copy; OpenStreetMap contributors &copy; '+${JSON.stringify(hasGateway?'Stadia Maps':'CARTO')}
         }).addTo(map);
 
         // Notify React Native that Leaflet map is fully ready
@@ -142,7 +146,7 @@ function generateHeatmapHtml(): string {
         }
       } catch (err) {
         if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', error: String(err) }));
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', error: 'Chưa tải được bản đồ. Hãy thử lại.' }));
         }
       }
     }
@@ -273,15 +277,16 @@ function generateHeatmapHtml(): string {
 </html>`;
 }
 
-const HTML_SOURCE = { html: generateHeatmapHtml(), baseUrl: 'https://tiles.stadiamaps.com' };
-
 export const LeafletHeatmap = forwardRef<LeafletHeatmapRef, Props>(function LeafletHeatmap(
   { observations, maxCount = 1, onMapReady, autoFit = false, hexagons },
   ref
 ) {
+  const session = useGatewaySession();
+  const htmlSource=useMemo(()=>({html:generateHeatmapHtml(session.token),baseUrl:'https://app.mymap.local/'}),[session.owner,session.token]);
   const webViewRef = useRef<any>(null);
   const [isReady, setIsReady] = useState(false);
   const isReadyRef = useRef(false);
+  useEffect(()=>{isReadyRef.current=false;setIsReady(false);},[htmlSource]);
   const pendingView = useRef<{latitude:number;longitude:number;zoom:number}|null>(null);
   const latestDataRef = useRef({ observations, maxCount, autoFit, hexagons });
   latestDataRef.current = { observations, maxCount, autoFit, hexagons };
@@ -354,7 +359,7 @@ export const LeafletHeatmap = forwardRef<LeafletHeatmapRef, Props>(function Leaf
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
-        source={HTML_SOURCE}
+        source={htmlSource}
         style={styles.webview}
         javaScriptEnabled
         domStorageEnabled

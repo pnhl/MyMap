@@ -1,18 +1,24 @@
 {
-  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "mymap-geo-gateway",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-21",
   "workers_dev": true,
   "observability": {
-    "enabled": true,
-    "head_sampling_rate": 0.1
+    "enabled": false
   },
+  "durable_objects": {
+    "bindings": [{ "name": "GEO_QUOTA", "class_name": "GeoQuota" }]
+  },
+  "migrations": [{ "tag": "geo-quota-v1", "new_sqlite_classes": ["GeoQuota"] }],
+  "secrets_store_secrets": [
+    { "binding": "STADIA_KEY", "store_id": "5e8f3d5f55c643fc8130111f59cdf94d", "secret_name": "MYMAP_STADIA_MAPS_API_KEY" },
+    { "binding": "TOMTOM_KEY", "store_id": "5e8f3d5f55c643fc8130111f59cdf94d", "secret_name": "MYMAP_TOMTOM_TRAFFIC_KEY" },
+    { "binding": "MAPILLARY_TOKEN", "store_id": "5e8f3d5f55c643fc8130111f59cdf94d", "secret_name": "MYMAP_MAPILLARY_ACCESS_TOKEN" }
+  ],
   "vars": {
-    "ALLOWED_ORIGINS": "*",
-    "ROUTING_PROVIDERS": "osrm,valhalla,graphhopper",
-    "OSRM_URL": "https://router.project-osrm.org",
-    "VALHALLA_URL": "https://valhalla.openstreetmap.de",
-    "GRAPHHOPPER_URL": "https://graphhopper.com/api/1"
+    "ALLOWED_ORIGINS": "https://app.mymap.local,null",
+    "FIREBASE_PROJECT_ID": "mymap-a3ae4",
+    "ROUTING_PROVIDERS": "tomtom,osrm,valhalla,graphhopper"
   }
 }
