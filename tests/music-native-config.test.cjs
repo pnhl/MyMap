@@ -46,6 +46,23 @@ test('native regeneration exposes only the supported Spotube packages and preser
   assert.equal(services.filter(item => item.$['android:foregroundServiceType'] === 'specialUse').length, 1);
 });
 
+test('moment sharing migrates its provider authority and isolates app variants', () => {
+  const transform = manifestPlugin();
+  const momentProvider = {
+    $: {'android:name': 'androidx.core.content.FileProvider', 'android:authorities': 'com.pnhl.vibecoding.moments.files'},
+    'meta-data': [{$: {'android:name': 'android.support.FILE_PROVIDER_PATHS', 'android:resource': '@xml/mymap_moment_files'}}],
+  };
+  const unrelatedProvider = {$: {'android:name': 'androidx.core.content.FileProvider', 'android:authorities': '${applicationId}.fileprovider'}};
+  const manifest = {application: [{$: {'android:name': '.MainApplication'}, provider: [momentProvider, unrelatedProvider]}]};
+  transform({modResults: {manifest}});
+  transform({modResults: {manifest}});
+  assert.equal(manifest.application[0].provider.length, 2);
+  assert.equal(momentProvider.$['android:authorities'], '${applicationId}.moments.files');
+  assert.equal(unrelatedProvider.$['android:authorities'], '${applicationId}.fileprovider');
+  const authorities = ['com.pnhl.vibecoding', 'com.pnhl.vibecoding.preview'].map(id => momentProvider.$['android:authorities'].replace('${applicationId}', id));
+  assert.equal(new Set(authorities).size, 2);
+});
+
 test('Spotube connection permits cleartext only on loopback and keeps remote traffic secure', async () => {
   const parsed = await parseStringPromise(fs.readFileSync('android/app/src/main/res/xml/mymap_network_security_config.xml', 'utf8'));
   const network = parsed['network-security-config'];

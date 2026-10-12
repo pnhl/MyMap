@@ -253,8 +253,14 @@ const withMyMapAndroid: ConfigPlugin = config => {
       if(!application.receiver.some(item=>item.$['android:name']==='.MomentWidget')) application.receiver.push(momentReceiver);
       const momentApplication=application as typeof application & {provider?:Array<{$:Record<string,string>;'meta-data':Array<{$:Record<string,string>}>}>};
       momentApplication.provider ??= [];
-      if(!momentApplication.provider.some(item=>item.$['android:authorities']==='com.pnhl.vibecoding.moments.files')) momentApplication.provider.push({
-        $:{'android:name':'androidx.core.content.FileProvider','android:authorities':'com.pnhl.vibecoding.moments.files','android:exported':'false','android:grantUriPermissions':'true'},
+      // Gradle resolves this per variant; MomentPlatformModule uses app.packageName too.
+      const momentAuthority = '${applicationId}.moments.files';
+      const existingMomentProvider = momentApplication.provider.find(item =>
+        item['meta-data']?.some(meta => meta.$['android:name'] === 'android.support.FILE_PROVIDER_PATHS' && meta.$['android:resource'] === '@xml/mymap_moment_files'),
+      );
+      if (existingMomentProvider) existingMomentProvider.$['android:authorities'] = momentAuthority;
+      else momentApplication.provider.push({
+        $:{'android:name':'androidx.core.content.FileProvider','android:authorities':momentAuthority,'android:exported':'false','android:grantUriPermissions':'true'},
         'meta-data':[{$:{'android:name':'android.support.FILE_PROVIDER_PATHS','android:resource':'@xml/mymap_moment_files'}}],
       });
       application.$['android:networkSecurityConfig'] = '@xml/mymap_network_security_config';

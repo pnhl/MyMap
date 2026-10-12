@@ -94,6 +94,8 @@ Quét lại đủ năm artifacts phát hành và bundle đã xuất trước khi
 
 ## Lệnh build và bàn giao
 
+APK thử nghiệm cài song song dùng application ID riêng (`com.pnhl.vibecoding.preview`) và khóa ký preview riêng, giữ nguyên khóa đó cho các lần cập nhật preview. Moment FileProvider khai báo `${applicationId}.moments.files` để địa chỉ khớp `app.packageName` trong native module và không trùng bản chính. Khi nghiệm thu APK preview, cài bản chính trước rồi cài preview và mở preview; kiểm tra riêng bước này vì khởi chạy preview trên máy trống không phát hiện xung đột provider. Bản chính vẫn giữ địa chỉ `com.pnhl.vibecoding.moments.files` để tương thích khi cập nhật.
+
 Commit source sạch, native locks đã duyệt, cấu hình CI/EAS đầy đủ rồi mới chạy trong phiên được phép dùng signing:
 
 ```text
