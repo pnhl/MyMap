@@ -1,6 +1,6 @@
 # Tiến độ parity — 10/10/2026
 
-Checkpoint 2026-10-12 Google Preview: đã được phép dùng Firebase thật cho APK Preview; đăng ký package Preview và chứng chỉ SHA-1/SHA-256, nhận cấu hình Android/Web OAuth riêng ngoài Git. Đang build Preview 40 bằng khóa Preview cũ; chưa ghi nhận đăng nhập tài khoản Google hoàn tất.
+Checkpoint 2026-10-12 Google Preview: chủ dự án đã cho phép dùng Firebase thật cho APK Preview; đã đăng ký package Preview và chứng chỉ SHA-1/SHA-256, nhận cấu hình Android/Web OAuth riêng ngoài Git. Preview 40 build thành công bằng khóa Preview cũ; native Firebase resources và OAuth trong APK khớp cấu hình Preview. Trên Android 15, cập nhật từ Preview 39, cài song song bản chính build 36, cold start và mở màn hình đăng nhập Google đều đạt; crash buffer trống. Không nhập credential tài khoản và chưa kiểm đăng nhập Google hoàn tất. Bảy Node tests liên quan đạt; gate quét 2891 file/entry trong APK đạt `providerCredentials=0`, chữ ký v2/v3 và ZIP/ELF64 16 KB đạt. Bằng chứng APK/checksum/ảnh kiểm thử được lưu ngoài Git.
 
 Quy ước: DONE-VERIFIED có bằng chứng tự động trong phạm vi ghi rõ; DONE-UNVERIFIED có code nhưng chưa nghiệm thu thiết bị; BLOCKED cần đầu vào bên ngoài. Không dùng credential thật trong lượt này, không tải lên cửa hàng.
 
