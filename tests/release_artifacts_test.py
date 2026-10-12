@@ -1,4 +1,4 @@
-import importlib.util, pathlib, plistlib, tempfile, unittest, zipfile, json
+import hashlib, importlib.util, pathlib, plistlib, struct, tempfile, unittest, zipfile, json
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('verify',pathlib.Path(__file__).resolve().parent.parent/'scripts/verify-artifacts.py');verify=importlib.util.module_from_spec(spec);spec.loader.exec_module(verify)
 class IpaValidation(unittest.TestCase):
@@ -27,8 +27,11 @@ class IpaValidation(unittest.TestCase):
 class AmazonAdMobValidation(unittest.TestCase):
     def validate(self, extra='', app_id=True):
         folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup);apk=pathlib.Path(folder.name)/'amazon.apk'
+        header=bytearray(128);header[:8]=bytes.fromhex('c61fbc03c103191f')
+        struct.pack_into('<I',header,8,98);struct.pack_into('<I',header,32,160);struct.pack_into('<I',header,40,1)
+        bundle=bytes(header)+b'\x00'*12;bundle+=hashlib.sha1(bundle).digest()
         with zipfile.ZipFile(apk,'w') as archive:
-            archive.writestr('assets/index.android.bundle',bytes.fromhex('c61fbc03c103191f')+b'shared-bundle')
+            archive.writestr('assets/index.android.bundle',bundle)
             archive.writestr('assets/mymap-release-inputs.json',json.dumps({**verify.RELEASE,'commit':'a'*40,'lockfileSha256':'a'*64,'publicConfigFingerprint':'b'*64,'inputsFingerprint':'c'*64,'flags':{'testAds':False}}))
             for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:archive.writestr('res/xml/'+rule+'.xml',b'fixture')
         badging=f"package: name='{verify.RELEASE['applicationId']}' versionCode='{verify.RELEASE['build']}' versionName='{verify.RELEASE['version']}'"
