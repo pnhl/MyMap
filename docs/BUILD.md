@@ -96,6 +96,8 @@ Quét lại đủ năm artifacts phát hành và bundle đã xuất trước khi
 
 APK thử nghiệm cài song song dùng application ID riêng (`com.pnhl.vibecoding.preview`) và khóa ký preview riêng, giữ nguyên khóa đó cho các lần cập nhật preview. Moment FileProvider khai báo `${applicationId}.moments.files` để địa chỉ khớp `app.packageName` trong native module và không trùng bản chính. Khi nghiệm thu APK preview, cài bản chính trước rồi cài preview và mở preview; kiểm tra riêng bước này vì khởi chạy preview trên máy trống không phát hiện xung đột provider. Bản chính vẫn giữ địa chỉ `com.pnhl.vibecoding.moments.files` để tương thích khi cập nhật.
 
+Firebase giả trong native fixture chỉ dùng để compile/QA không đăng nhập; bật Google trên Firebase thật không tự cập nhật APK đã build bằng fixture. Preview cần đăng nhập phải được cho phép kết nối Firebase thật, đăng ký package Preview và SHA-1/SHA-256 của khóa Preview trong cùng project, rồi lấy `google-services.json` mới qua injection riêng ngoài Git. Manifest release tạm trong workspace build phải chọn application ID Preview trước khi Expo lấy OAuth clients; giữ manifest release chính của repo nguyên vẹn. Preflight kiểm đúng package và có cả Android/Web OAuth clients, native resources và Expo `extra.firebaseOAuth` phải cùng project/config. Build lại APK, kiểm nút Google và luồng mở màn hình tài khoản; người dùng tự hoàn tất đăng nhập, không thu thập hay ghi log mật khẩu/token. Không chép cấu hình của package chính sang Preview hoặc coi việc nút đã bật là bằng chứng đăng nhập thành công.
+
 Commit source sạch, native locks đã duyệt, cấu hình CI/EAS đầy đủ rồi mới chạy trong phiên được phép dùng signing:
 
 ```text

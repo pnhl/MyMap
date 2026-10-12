@@ -1,5 +1,7 @@
 # Tiến độ parity — 10/10/2026
 
+Checkpoint 2026-10-12 Google Preview: đã được phép dùng Firebase thật cho APK Preview; đăng ký package Preview và chứng chỉ SHA-1/SHA-256, nhận cấu hình Android/Web OAuth riêng ngoài Git. Đang build Preview 40 bằng khóa Preview cũ; chưa ghi nhận đăng nhập tài khoản Google hoàn tất.
+
 Quy ước: DONE-VERIFIED có bằng chứng tự động trong phạm vi ghi rõ; DONE-UNVERIFIED có code nhưng chưa nghiệm thu thiết bị; BLOCKED cần đầu vào bên ngoài. Không dùng credential thật trong lượt này, không tải lên cửa hàng.
 
 | Cụm | Trạng thái | Bằng chứng / còn lại |

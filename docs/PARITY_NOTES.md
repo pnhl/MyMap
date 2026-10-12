@@ -1,5 +1,7 @@
 # Ghi chú hành vi và chênh lệch audit
 
+2026-10-12: Preview build 39 dùng Firebase giả nên Google bị vô hiệu hóa cục bộ; không phải Google provider trên Firebase bị tắt. Sau khi chủ dự án cho phép kết nối Firebase thật cho Preview, đã đăng ký package `com.pnhl.vibecoding.preview` và SHA-1/SHA-256 của khóa ký Preview. Cấu hình SDK mới có Android/Web OAuth clients, được giữ trong workspace ignored và inject vào bản build Preview 40. Không đổi package/chữ ký bản chính, không dùng keystore phát hành, không bật thêm provider và không đưa server secrets vào app. Việc đăng nhập thực tế cần người dùng hoàn tất trên thiết bị của họ; kiểm build/runtime được ghi riêng khi có kết quả.
+
 Yêu cầu ngày 10/10/2026 thay thế quyết định cũ khi xung đột. Không cài, chạy, ký bằng credential thật trong lượt triển khai này.
 
 ## Nguồn gộp
