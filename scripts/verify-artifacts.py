@@ -11,7 +11,7 @@ def require(value, message):
     if not value: raise ValueError(message)
 
 def command(args):
-    return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT)
+    return subprocess.check_output(args, text=True, encoding='utf-8', stderr=subprocess.STDOUT)
 
 def verify_provenance(path,inputs,commit):
     if not commit:return
