@@ -41,9 +41,20 @@ def credential_categories(data, *, allow_start=True, allow_end=True):
             texts.append(data[offset:].decode('utf-16-be', errors='replace'))
     found = set()
     for original in texts:
-        for text in (original, unquote(original)) if '%' in original else (original,):
+        for text in (original, unquote(original)) if re.search(r'%[0-9a-fA-F]{2}', original) else (original,):
+            # Native binaries decode into large Unicode strings. Searching
+            # every case-insensitive provider regex over every such string is
+            # costly; these necessary literal prefixes preserve all matches.
+            lower = text.lower()
+            candidates = {
+                'obsolete-public-provider-variable': 'EXPO_PUBLIC_' in text,
+                'mapillary-access-token': 'MLY|' in text,
+                'embedded-jwt': 'eyJ' in text,
+                'provider-url-credential': 'http' in lower and any(domain in lower for domain in ('stadiamaps.com','tomtom.com','graphhopper.com','mapillary.com','cesium.com')),
+                'labelled-provider-credential': any(provider in lower for provider in ('stadia','tomtom','graphhopper','mapillary','cesium')),
+            }
             for category, pattern in PATTERNS.items():
-                if pattern.search(text): found.add(category)
+                if candidates[category] and pattern.search(text): found.add(category)
             for match in OPAQUE_KEY.finditer(text):
                 # A streaming window boundary is not a token boundary. The
                 # overlap/next window determines whether the token continues.
