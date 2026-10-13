@@ -4,8 +4,9 @@ import hashlib, json, re, struct, pathlib
 def require(value, message):
     if not value: raise ValueError(message)
 
-def dex_startup(archive, prefix=''):
-    wanted={'Llivekit/org/jni_zero/JniInit;':'init','Lexpo/modules/adapters/react/apploader/RNHeadlessAppLoader;':'<init>'}
+def dex_startup(archive, prefix='', required_methods=None):
+    wanted={'Llivekit/org/jni_zero/JniInit;':{'init'},'Lexpo/modules/adapters/react/apploader/RNHeadlessAppLoader;':{'<init>'}}
+    for desc, methods in (required_methods or {}).items():wanted.setdefault(desc,set()).update(methods)
     found=set()
     for name in archive.namelist():
         if not re.fullmatch(re.escape(prefix)+r'classes\d*\.dex',name): continue
@@ -38,9 +39,11 @@ def dex_startup(archive, prefix=''):
                     delta,cursor=uleb(cursor);method_index+=delta
                     _,cursor=uleb(cursor);code,cursor=uleb(cursor)
                     at=methods+method_index*8
-                    if code and struct.unpack_from('<H',b,at)[0]==kind and string(u32(at+4))==wanted[desc]:found.add(desc)
-    require(found==set(wanted),'Missing DEX startup class definition/method: '+', '.join(sorted(set(wanted)-found)))
-    return sorted(found)
+                    method_name=string(u32(at+4))
+                    if code and struct.unpack_from('<H',b,at)[0]==kind and method_name in wanted[desc]:found.add((desc,method_name))
+    required={(desc,method) for desc,methods in wanted.items() for method in methods}
+    require(found==required,'Missing DEX startup class definition/method: '+', '.join(desc+'#'+method for desc,method in sorted(required-found)))
+    return sorted(wanted)
 
 def elf_alignment(b, name):
     require(b[:4]==b'\x7fELF' and b[5]==1,'Invalid little-endian ELF: '+name)

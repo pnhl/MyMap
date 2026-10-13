@@ -25,7 +25,7 @@ if($LASTEXITCODE -ne 0){throw 'Dependency patches failed.'}
 # CNG owns /android (ignored). A fresh prebuild prevents one store's native SDKs leaking into another.
 & npx expo prebuild --platform android --clean --no-install
 if($LASTEXITCODE -ne 0){throw 'Android prebuild failed.'}
-$tasks=if($Store -eq 'play'){@(':app:assembleGoogleRelease',':app:bundleGoogleRelease')}else{@(':app:assembleAmazonRelease')}
+[string[]]$tasks=if($Store -eq 'play'){@(':app:assembleGoogleRelease',':app:bundleGoogleRelease')}else{@(':app:assembleAmazonRelease')}
 Push-Location -LiteralPath android
 try {
  & ./gradlew.bat @tasks "-PreactNativeArchitectures=$Architectures" '-Pandroid.enableMinifyInReleaseBuilds=true' '-Pandroid.enableShrinkResourcesInReleaseBuilds=true' '-Pexpo.useLegacyPackaging=true' '-Pandroid.enableBundleCompression=true' '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m' --dependency-verification=strict --console=plain "--max-workers=$MaxWorkers"
@@ -39,16 +39,16 @@ $apk=Join-Path $output "MyMap-$($release.version)-$Store.apk"
 Copy-Item -LiteralPath "android/app/build/outputs/apk/$flavor/release/app-$flavor-release.apk" -Destination $apk
 & node scripts/write-artifact-provenance.cjs $apk
 if($LASTEXITCODE -ne 0){throw 'APK provenance creation failed.'}
-& python scripts/verify-artifacts.py "--$Store" $apk --commit (git rev-parse HEAD)
-if($LASTEXITCODE -ne 0){throw 'APK manifest/signature validation failed.'}
-& scripts/verify-apk-startup.ps1 -ApkPath $apk
-if($LASTEXITCODE -ne 0){throw 'APK startup validation failed.'}
+$verificationArgs=@('scripts/verify-artifacts.py',"--$Store",$apk,'--commit',(git rev-parse HEAD))
 if($Store -eq 'play'){
  $aab=Join-Path $output "MyMap-$($release.version)-play.aab"
  Copy-Item -LiteralPath android/app/build/outputs/bundle/googleRelease/app-google-release.aab -Destination $aab
  & node scripts/write-artifact-provenance.cjs $aab
  if($LASTEXITCODE -ne 0){throw 'AAB provenance creation failed.'}
- & python scripts/verify-artifacts.py --aab $aab --play $apk --commit (git rev-parse HEAD)
- if($LASTEXITCODE -ne 0){throw 'AAB validation failed; set BUNDLETOOL_JAR.'}
+ $verificationArgs+=@('--aab',$aab)
 }
+& python @verificationArgs
+if($LASTEXITCODE -ne 0){throw 'Release artifact validation failed; Google AAB requires BUNDLETOOL_JAR.'}
+& scripts/verify-apk-startup.ps1 -ApkPath $apk
+if($LASTEXITCODE -ne 0){throw 'APK startup validation failed.'}
 Write-Output "Validated release: $output"

@@ -8,7 +8,7 @@ version = '1.0.0'
 android {
   namespace 'expo.modules.mymapcapabilities'
   buildFeatures { buildConfig true }
-  defaultConfig { versionCode 1; versionName '1.0.0' }
+  defaultConfig { versionCode 1; versionName '1.0.0'; consumerProguardFiles 'consumer-rules.pro' }
   flavorDimensions 'distribution'
   productFlavors {
     google { dimension 'distribution';buildConfigField 'boolean','NANO_ENABLED','true' }

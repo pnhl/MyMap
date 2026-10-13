@@ -20,11 +20,13 @@ class BinaryChecks(unittest.TestCase):
   for index in range(2):
    struct.pack_into('<I',b,128+index*4,index);struct.pack_into('<HHI',b,136+index*8,index,0,index+2);struct.pack_into('<I',b,152+index*32,index);struct.pack_into('<I',b,176+index*32,400+index*8)
    b[400+index*8:407+index*8]=bytes([0,0,1,0,index,1,1])
-  def verify():
+  def verify(extra=None):
    data=io.BytesIO()
    with zipfile.ZipFile(data,'w')as z:z.writestr('classes.dex',b)
-   with zipfile.ZipFile(data)as z:return dex_startup(z)
+   with zipfile.ZipFile(data)as z:return dex_startup(z,required_methods=extra)
   self.assertEqual(len(verify()),2)
+  self.assertEqual(len(verify({'Llivekit/org/jni_zero/JniInit;':{'init'}})),2)
+  with self.assertRaisesRegex(ValueError,'#renamedMethod'):verify({'Llivekit/org/jni_zero/JniInit;':{'renamedMethod'}})
   b[406]=0
   with self.assertRaisesRegex(ValueError,'startup'):verify()
  def test_framework_constants_and_spotube_are_preserved_but_active_dev_route_fails(self):

@@ -6,6 +6,7 @@ from provider_secrets import scan_path
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RELEASE = json.loads((ROOT / 'release.json').read_text())
 ANDROID_NS = '{http://schemas.android.com/apk/res/android}'
+GOOGLE_REFLECTED_METHODS = {'Lcom/google/android/gms/common/GoogleApiAvailability;': {'getInstance', 'isGooglePlayServicesAvailable'}}
 
 def require(value, message):
     if not value: raise ValueError(message)
@@ -75,7 +76,7 @@ def apk(path, store, commit=None):
         bundle = archive.read('assets/index.android.bundle')
         require(bundle.startswith(bytes.fromhex('c61fbc03c103191f')),'Android release lacks Hermes bytecode')
         inputs=embedded_inputs(archive.read('assets/mymap-release-inputs.json'),RELEASE,commit)
-        dex=dex_startup(archive);abis=native_libraries(archive);dev=archive_dev_strings(archive)
+        dex=dex_startup(archive,required_methods=GOOGLE_REFLECTED_METHODS if store=='play' else None);abis=native_libraries(archive);dev=archive_dev_strings(archive)
         apk_backup_rules(path, tree, archive)
     command([android_tool('zipalign'),'-c','-P','16','4',str(path)])
     verify_provenance(path,inputs,commit)
@@ -179,7 +180,7 @@ def aab(path, commit=None):
         for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:
             require('base/res/xml/'+rule+'.xml' in archive.namelist(),'AAB missing backup rules: '+rule)
         inputs=embedded_inputs(archive.read('base/assets/mymap-release-inputs.json'),RELEASE,commit)
-        dex=dex_startup(archive,'base/dex/');abis=native_libraries(archive,'base/lib/');dev=archive_dev_strings(archive)
+        dex=dex_startup(archive,'base/dex/',required_methods=GOOGLE_REFLECTED_METHODS);abis=native_libraries(archive,'base/lib/');dev=archive_dev_strings(archive)
     verify_provenance(path,inputs,commit)
     return {'store':'play-aab','file':path.name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'jsSha256':hashlib.sha256(bundle).hexdigest(),'inputs':inputs,'startup':dex,'abis':abis,'devStrings':dev,'providerCredentials':credentials}
 

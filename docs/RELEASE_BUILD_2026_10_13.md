@@ -15,6 +15,8 @@ Android/Amazon giữ application ID `com.pnhl.vibecoding`, dùng các khóa rele
 - Chọn ARM64 cho hai APK/AAB, phù hợp đường native AI 64 bit đã compile. Không tuyên bố hỗ trợ ABI 32 bit bằng artifact này.
 - Build script dùng signing config riêng từng store, Gradle dependency verification strict, R8/resource shrink và tạo provenance trước artifact gate. Gate kiểm package/version/chữ ký, permissions, backup, Hermes, JNI startup definitions, ELF/ZIP 16 KB và provider credentials. Kiểm cùng JS/input fingerprints giữa Google/Amazon/AAB sau khi build xong.
 - Các test source/gates không thay thế QA GPS/push/SOS/gọi/AI trên máy thật hoặc xác nhận đăng nhập Google hoàn tất.
+- Smoke test Release R8 phát hiện Google bị ẩn dù Firebase/OAuth đúng: reflection gọi `GoogleApiAvailability.getInstance/isGooglePlayServicesAvailable` bị R8 đổi tên. Đã bổ sung consumer keep rules tại module capabilities; gate Google APK/AAB yêu cầu class và cả hai method definitions có code, không chỉ có string/reference. Artifact trước sửa không được bàn giao. Các artifact cuối phải build lại từ source có bản sửa này và kiểm UI Google.
+- PowerShell cần `[string[]]` cho danh sách Gradle tasks: nhánh Amazon chỉ có một task, nếu để string thì splatting truyền từng ký tự. APK/AAB Google được kiểm trong một lần verifier để không quét APK lặp lại.
 
 ## Blocker iOS với xtool
 
