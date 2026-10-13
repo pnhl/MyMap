@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pnhl.vibecoding",
-      "buildNumber": "38",
+      "buildNumber": "41",
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.pnhl.vibecoding",
-      "versionCode": 38,
+      "versionCode": 41,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-foreground-v2.png",

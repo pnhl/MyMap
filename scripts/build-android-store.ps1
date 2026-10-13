@@ -6,9 +6,10 @@ Set-Location -LiteralPath $projectRoot
 if($LASTEXITCODE -ne 0){throw 'Release source validation failed.'}
 if(!$JavaHome){$JavaHome=Join-Path $env:USERPROFILE '.jdks/jbr-21.0.11'}
 if(!(Test-Path -LiteralPath (Join-Path $JavaHome 'bin/java.exe'))){throw 'Set JAVA_HOME to JDK 21.'}
-if(!(Test-Path -LiteralPath '.signing/release.properties')){throw 'Restore the existing release signing files; never replace the published app signing key.'}
+if(!(Test-Path -LiteralPath ".signing/$Store/release.properties")){throw "Restore the existing $Store release signing files; never replace the published app signing key."}
 $env:JAVA_HOME=$JavaHome
 $env:MYMAP_STORE=$Store
+$env:APP_STORE_TARGET=$Store
 $env:MYMAP_RELEASE='true'
 $env:EXPO_PUBLIC_ENABLE_TEST_ADS='false'
 $env:RNLLAMA_SKIP_POSTINSTALL='1'
@@ -27,7 +28,7 @@ if($LASTEXITCODE -ne 0){throw 'Android prebuild failed.'}
 $tasks=if($Store -eq 'play'){@(':app:assembleGoogleRelease',':app:bundleGoogleRelease')}else{@(':app:assembleAmazonRelease')}
 Push-Location -LiteralPath android
 try {
- & ./gradlew.bat @tasks "-PreactNativeArchitectures=$Architectures" '-Pandroid.enableMinifyInReleaseBuilds=true' '-Pandroid.enableShrinkResourcesInReleaseBuilds=true' '-Pexpo.useLegacyPackaging=true' '-Pandroid.enableBundleCompression=true' --console=plain "--max-workers=$MaxWorkers"
+ & ./gradlew.bat @tasks "-PreactNativeArchitectures=$Architectures" '-Pandroid.enableMinifyInReleaseBuilds=true' '-Pandroid.enableShrinkResourcesInReleaseBuilds=true' '-Pexpo.useLegacyPackaging=true' '-Pandroid.enableBundleCompression=true' '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m' --dependency-verification=strict --console=plain "--max-workers=$MaxWorkers"
  if($LASTEXITCODE -ne 0){throw 'Android release build failed.'}
 } finally {Pop-Location}
 $release=Get-Content -LiteralPath release.json -Raw | ConvertFrom-Json
@@ -36,6 +37,8 @@ New-Item -ItemType Directory -Force -Path $output | Out-Null
 $flavor=if($Store -eq 'play'){'google'}else{'amazon'}
 $apk=Join-Path $output "MyMap-$($release.version)-$Store.apk"
 Copy-Item -LiteralPath "android/app/build/outputs/apk/$flavor/release/app-$flavor-release.apk" -Destination $apk
+& node scripts/write-artifact-provenance.cjs $apk
+if($LASTEXITCODE -ne 0){throw 'APK provenance creation failed.'}
 & python scripts/verify-artifacts.py "--$Store" $apk --commit (git rev-parse HEAD)
 if($LASTEXITCODE -ne 0){throw 'APK manifest/signature validation failed.'}
 & scripts/verify-apk-startup.ps1 -ApkPath $apk
@@ -43,6 +46,8 @@ if($LASTEXITCODE -ne 0){throw 'APK startup validation failed.'}
 if($Store -eq 'play'){
  $aab=Join-Path $output "MyMap-$($release.version)-play.aab"
  Copy-Item -LiteralPath android/app/build/outputs/bundle/googleRelease/app-google-release.aab -Destination $aab
+ & node scripts/write-artifact-provenance.cjs $aab
+ if($LASTEXITCODE -ne 0){throw 'AAB provenance creation failed.'}
  & python scripts/verify-artifacts.py --aab $aab --play $apk --commit (git rev-parse HEAD)
  if($LASTEXITCODE -ne 0){throw 'AAB validation failed; set BUNDLETOOL_JAR.'}
 }

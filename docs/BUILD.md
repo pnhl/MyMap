@@ -1,6 +1,8 @@
 # Build ba cửa hàng từ cùng commit
 
-Nguồn version: `release.json`, hiện 1.0.4/build 38. `node scripts/bump-release.cjs [x.y.z]` cập nhật mirrors và mọi native target qua CNG. Build 38 vượt 36/37 đã cung cấp; chủ dự án phải đối chiếu số cao nhất đã publish trước phát hành.
+Nguồn version: `release.json`, hiện 1.0.4/build 41. `node scripts/bump-release.cjs [x.y.z]` cập nhật mirrors và mọi native target qua CNG. Build 41 vượt các build 36–40 đã cung cấp trong phiên; vẫn cần đối chiếu số cao nhất trên cửa hàng trước upload.
+
+Yêu cầu release 13/10/2026: build Android Google Play và Amazon bằng khóa release hiện có; giữ yêu cầu xtool cho iOS và ghi nhận blocker theo lựa chọn của chủ dự án. Xem [RELEASE_BUILD_2026_10_13.md](RELEASE_BUILD_2026_10_13.md). Không coi yêu cầu build là upload lên cửa hàng.
 
 ## Trạng thái
 
