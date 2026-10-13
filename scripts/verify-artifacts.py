@@ -12,7 +12,8 @@ def require(value, message):
     if not value: raise ValueError(message)
 
 def command(args):
-    return subprocess.check_output(args, text=True, encoding='utf-8', stderr=subprocess.STDOUT)
+    # JVM diagnostics (including JAVA_TOOL_OPTIONS) must not prefix XML stdout.
+    return subprocess.check_output(args, text=True, encoding='utf-8', stderr=subprocess.PIPE)
 
 def verify_provenance(path,inputs,commit):
     if not commit:return

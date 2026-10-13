@@ -31,4 +31,16 @@ Android/Amazon giữ application ID `com.pnhl.vibecoding`, dùng các khóa rele
 
 ## Bàn giao
 
-Chỉ bàn giao Android/Amazon sau khi artifact gates đạt. Receipt thực tế nằm cạnh binaries, ghi hash, source commit, ABI, trạng thái iOS và các cấu hình production còn thiếu. Không gọi đây là release set đầy đủ năm artifact khi chưa có hai IPA.
+Đã bàn giao đủ ba artifact Android/Amazon, cùng application source commit `eda9dc8178baa163c1fb6b7e13c45f3550e880e4`:
+
+| File tại dist/releases/build-41 | Bytes | SHA-256 |
+|---|---:|---|
+| MyMap-1.0.4-play.apk | 89138181 | cc1bc991a2e31bda619bf83199a4d8155ea3538090e3806649230f8f02d590ed |
+| MyMap-1.0.4-play.aab | 103322422 | 97902ce5c0ca9194224c0e2c70846d043e2a2014b319c1e959b40e7919c97511 |
+| MyMap-1.0.4-amazon.apk | 86238359 | e0d0e12afc0e974fa653fa1dccf0fd143efa6112d080e3facf70c5ef58c0756f |
+
+Ba file cùng JS SHA-256 `ad41f9dd0fb07025e2875c6db988bfe1def598d4d198bb0c6e89a6ae80c2f10d` và input fingerprint. Gates signature, package/version, permissions/backup, DEX/JNI startup, ELF/ZIP 16 KB, Hermes và provider credentials đều đạt; không phát hiện provider key. 379 Node tests, 29 Python tests, lint/typecheck đạt trong phạm vi source thay đổi. APK Google cập nhật đè build 36, hiện bản đồ và mở Google Play Services sign-in, không nhập credential hay kiểm đăng nhập hoàn tất. Host 16 GB thiếu RAM khi chạy build/emulator cùng lúc: cold-start draw wait từng timeout, UI sau đó hiển thị; không coi là nghiệm thu thời gian khởi động hay thiết bị thật. Đã dừng emulator và Gradle daemon do phiên này sử dụng sau QA.
+
+Amazon signer riêng đã được chủ dự án chọn sau khi đối chiếu build 36. Không cập nhật đè/coexist với package chính ký khóa khác; cần sao lưu dữ liệu cần giữ trước khi gỡ bản cũ để cài. Chưa kiểm Fire thật, push, GPS nền hoặc AI trên thiết bị. Gateway production URL chưa được cấu hình trong các binary này.
+
+`google.verification.json`, `amazon.verification.json`, `release-receipt.json`, provenance, `.sha256` và ảnh đăng nhập nằm cạnh binaries ngoài Git. Một bản sửa riêng cho verifier tách stderr JVM khỏi XML stdout được kiểm bằng gate AAB thực tế sau build; thay đổi công cụ kiểm nhận này không thay application source commit đã nhúng trong artifacts. Không gọi đây là release set đầy đủ năm artifact khi chưa có hai IPA; không upload store.
