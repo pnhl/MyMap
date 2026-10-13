@@ -35,10 +35,11 @@ class AmazonAdMobValidation(unittest.TestCase):
             archive.writestr('assets/mymap-release-inputs.json',json.dumps({**verify.RELEASE,'commit':'a'*40,'lockfileSha256':'a'*64,'publicConfigFingerprint':'b'*64,'inputsFingerprint':'c'*64,'flags':{'testAds':False}}))
             for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:archive.writestr('res/xml/'+rule+'.xml',b'fixture')
         badging=f"package: name='{verify.RELEASE['applicationId']}' versionCode='{verify.RELEASE['build']}' versionName='{verify.RELEASE['version']}'"
-        manifest='android:allowBackup=false android:dataExtractionRules '+extra
+        manifest='android:allowBackup=false\nandroid:fullBackupContent(0x010104eb)=@0x7f16000a\nandroid:dataExtractionRules(0x0101063e)=@0x7f16000b\n'+extra
         if app_id:manifest+=' com.google.android.gms.ads.APPLICATION_ID ca-app-pub-9161074667002246~7998118867'
         def command(args):
             if args[0]=='apksigner':return 'Signer #1 certificate SHA-256 digest: '+'a'*64
+            if 'resources' in args:return 'resource 0x7f16000a xml/mymap_backup_rules\n  () (file) res/xml/mymap_backup_rules.xml type=XML\nresource 0x7f16000b xml/mymap_data_extraction_rules\n  () (file) res/xml/mymap_data_extraction_rules.xml type=XML\n'
             if 'res/xml/' in ' '.join(args):return 'exclude database sharedpref root file external'
             return badging if 'badging' in args else manifest
         with patch.object(verify,'android_tool',side_effect=lambda name:name),patch.object(verify,'command',side_effect=command),patch.object(verify,'dex_startup',return_value=[]),patch.object(verify,'native_libraries',return_value=['arm64-v8a']):
@@ -49,5 +50,22 @@ class AmazonAdMobValidation(unittest.TestCase):
     def test_amazon_rejects_fcm_and_mobile_ads_initializer(self):
         with self.assertRaisesRegex(ValueError,'Google-only component'):self.validate('FirebaseMessagingService')
         with self.assertRaisesRegex(ValueError,'Google-only component'):self.validate('GoogleMobileAdsInitProvider')
+
+class OptimizedBackupRules(unittest.TestCase):
+    def validate(self, manifest=None, rules=None, omit_file=False):
+        folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup);apk=pathlib.Path(folder.name)/'optimized.apk'
+        with zipfile.ZipFile(apk,'w') as archive:
+            archive.writestr('res/F3.xml',b'fixture')
+            if not omit_file:archive.writestr('res/Bd.xml',b'fixture')
+        resources='resource 0x7f16000a xml/mymap_backup_rules\n  () (file) res/F3.xml type=XML\nresource 0x7f16000b xml/mymap_data_extraction_rules\n  () (file) res/Bd.xml type=XML\n'
+        manifest=manifest if manifest is not None else 'android:fullBackupContent(0x010104eb)=@0x7f16000a\nandroid:dataExtractionRules(0x0101063e)=@0x7f16000b\n'
+        def command(args):return resources if 'resources' in args else rules if rules is not None else 'exclude database sharedpref root file external'
+        with zipfile.ZipFile(apk) as archive,patch.object(verify,'android_tool',return_value='aapt2'),patch.object(verify,'command',side_effect=command):verify.apk_backup_rules(apk,manifest,archive)
+    def test_accepts_shortened_paths_referenced_by_manifest(self):self.validate()
+    def test_rejects_unreferenced_or_missing_backup_xml(self):
+        with self.assertRaisesRegex(ValueError,'Manifest does not reference'):self.validate(manifest='android:fullBackupContent=@0x7f160099')
+        with self.assertRaisesRegex(ValueError,'Missing packaged backup rule'):self.validate(omit_file=True)
+    def test_rejects_backup_rules_without_private_data_exclusions(self):
+        with self.assertRaisesRegex(ValueError,'does not exclude private data'):self.validate(rules='exclude database')
 
 if __name__=='__main__':unittest.main()

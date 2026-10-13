@@ -29,6 +29,21 @@ def android_tool(name):
     require(candidates, 'Set ANDROID_HOME or ' + name.upper())
     return str(candidates[0])
 
+def apk_backup_rules(path, manifest, archive):
+    # AAPT2 shortens packaged paths (e.g. res/F3.xml). Resolve the named
+    # resource and its manifest reference rather than assuming its ZIP path.
+    resources = command([android_tool('aapt2'), 'dump', 'resources', str(path)])
+    for rule, attribute in [('mymap_backup_rules', 'fullBackupContent'), ('mymap_data_extraction_rules', 'dataExtractionRules')]:
+        match = re.search(r'\bresource (0x[0-9a-fA-F]+) (?:[\w.]+:)?xml/' + rule + r'\s*\n([\s\S]*?)(?=\n\s*resource 0x|\Z)', resources)
+        require(match, 'Missing packaged backup resource: ' + rule)
+        require(re.search(r'android:' + attribute + r'[^\n=]*=@' + re.escape(match[1]) + r'\b', manifest), 'Manifest does not reference backup resource: ' + rule)
+        filenames = set(re.findall(r'\(file\) (res/[^\s]+\.xml)\s+type=XML', match[2]))
+        require(filenames, 'Backup resource has no XML file: ' + rule)
+        for filename in filenames:
+            require(filename in archive.namelist(), 'Missing packaged backup rule: ' + rule)
+            rules = command([android_tool('aapt2'), 'dump', 'xmltree', str(path), '--file', filename])
+            require('exclude' in rules and all(domain in rules for domain in ['database','sharedpref','root','file','external']), 'Backup rule does not exclude private data: ' + rule)
+
 def apk(path, store, commit=None):
     credentials=scan_path(path)
     aapt = android_tool('aapt2')
@@ -61,11 +76,7 @@ def apk(path, store, commit=None):
         require(bundle.startswith(bytes.fromhex('c61fbc03c103191f')),'Android release lacks Hermes bytecode')
         inputs=embedded_inputs(archive.read('assets/mymap-release-inputs.json'),RELEASE,commit)
         dex=dex_startup(archive);abis=native_libraries(archive);dev=archive_dev_strings(archive)
-        for rule in ['mymap_backup_rules','mymap_data_extraction_rules']:
-            filename=next((n for n in archive.namelist() if re.fullmatch(r'res/xml/'+rule+r'\.xml',n)),None)
-            require(filename,'Missing packaged backup rule: '+rule)
-            rules=command([aapt,'dump','xmltree',str(path),'--file',filename])
-            require('exclude' in rules and all(domain in rules for domain in ['database','sharedpref','root','file','external']),'Backup rule does not exclude private data: '+rule)
+        apk_backup_rules(path, tree, archive)
     command([android_tool('zipalign'),'-c','-P','16','4',str(path)])
     verify_provenance(path,inputs,commit)
     return {'store':store, 'file':path.name, 'sha256':hashlib.sha256(path.read_bytes()).hexdigest(), 'jsSha256':hashlib.sha256(bundle).hexdigest(), 'signerSha256':cert.group(1).lower(), 'permissions':sorted(permissions),'inputs':inputs,'abis':abis,'startup':dex,'devStrings':dev,'providerCredentials':credentials}
