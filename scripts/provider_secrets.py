@@ -45,7 +45,8 @@ def credential_categories(data, *, allow_start=True, allow_end=True):
             # Native binaries decode into large Unicode strings. Searching
             # every case-insensitive provider regex over every such string is
             # costly; these necessary literal prefixes preserve all matches.
-            lower = text.lower()
+            # Match Python re.I's Unicode equivalents of ASCII i/s/k too.
+            lower = text.casefold().replace('\u0131','i').replace('i\u0307','i')
             candidates = {
                 'obsolete-public-provider-variable': 'EXPO_PUBLIC_' in text,
                 'mapillary-access-token': 'MLY|' in text,

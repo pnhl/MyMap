@@ -21,6 +21,12 @@ def hermes_fixture(values, *, extra_storage=b'', extra_binary=b'', version=98):
     return body+hashlib.sha1(body).digest()
 
 class ProviderCredentialChecks(unittest.TestCase):
+    def test_provider_prefilters_preserve_unicode_case_insensitive_matches(self):
+        for label in ['\u017fTADIA_KEY','STAD\u0130A_KEY','STAD\u0131A_KEY','TOMTOM_\u212aEY']:
+            with self.subTest(label=label):
+                self.assertIn('labelled-provider-credential',credential_categories((label+'=synthetic-private-fixture').encode()))
+        self.assertIn('provider-url-credential',credential_categories('HTTPS://api.\u017ftad\u0130amaps.com/tiles?api_key=synthetic-private-fixture'.encode()))
+
     def test_base64_certificate_and_signed_jar_digest_fragments_are_not_keys(self):
         synthetic=b'aB3dE6gH9jK2mN5pQ8sT1vW4yZ7cF0iL'
         self.assertEqual(credential_categories(b'SHA-256-Digest: abc/'+synthetic+b'+xyz='),[])
